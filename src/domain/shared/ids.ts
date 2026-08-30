@@ -1,0 +1,23 @@
+/** Branded string types so IDs from different aggregates cannot be mixed up by accident. */
+export type Brand<T, B extends string> = T & { readonly __brand: B };
+
+export type TenantId = Brand<string, "TenantId">;
+export type OrganizationId = Brand<string, "OrganizationId">;
+export type SiteId = Brand<string, "SiteId">;
+export type AssetId = Brand<string, "AssetId">;
+export type MetricDefinitionId = Brand<string, "MetricDefinitionId">;
+export type ConnectorId = Brand<string, "ConnectorId">;
+export type VendorObjectMappingId = Brand<string, "VendorObjectMappingId">;
+export type VendorMetricMappingId = Brand<string, "VendorMetricMappingId">;
+export type MeasurementId = Brand<string, "MeasurementId">;
+export type ControlIntentId = Brand<string, "ControlIntentId">;
+export type AssetStateId = Brand<string, "AssetStateId">;
+export type EventId = Brand<string, "EventId">;
+export type AnomalyId = Brand<string, "AnomalyId">;
+export type CaseId = Brand<string, "CaseId">;
+export type CaseSubjectId = Brand<string, "CaseSubjectId">;
+export type CaseEvidenceId = Brand<string, "CaseEvidenceId">;
+export type RecommendationId = Brand<string, "RecommendationId">;
+export type ActionId = Brand<string, "ActionId">;
+export type VerificationId = Brand<string, "VerificationId">;
+export type CaseStatusHistoryId = Brand<string, "CaseStatusHistoryId">;

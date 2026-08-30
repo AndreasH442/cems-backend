@@ -1,0 +1,24 @@
+{
+  "objects": [
+    {
+      "objectId": "bat.1",
+      "sensors": [
+        { "sensorId": "soc", "value": 55.3, "timestamp": "2026-08-30T10:00:00.000Z" },
+        { "sensorId": "p_setpoint", "value": -5.0, "timestamp": "2026-08-30T10:00:00.000Z" },
+        { "sensorId": "p_charge", "value": 0.0, "timestamp": "2026-08-30T10:00:30.000Z" },
+        { "sensorId": "p_discharge", "value": 5.1, "timestamp": "2026-08-30T10:00:30.000Z" }
+      ]
+    },
+    {
+      "objectId": "inv.1",
+      "sensors": [
+        { "sensorId": "p_ac", "value": 12.4, "timestamp": "2026-08-30T10:00:00.000Z" },
+        { "sensorId": "p_setpoint", "value": 10.0, "timestamp": "2026-08-30T10:00:00.000Z" }
+      ]
+    },
+    {
+      "objectId": "prc.7",
+      "sensors": [{ "sensorId": "status", "value": 1, "timestamp": "2026-08-30T10:00:00.000Z" }]
+    }
+  ]
+}

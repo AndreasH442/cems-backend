@@ -1,0 +1,39 @@
+{
+  "name": "cems-backend",
+  "version": "0.0.1",
+  "private": true,
+  "description": "CEMS backend – erster Vertical Slice",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json --noEmit false --outDir dist",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "migrate:up": "tsx src/infrastructure/db/migrate.ts up",
+    "migrate:down": "tsx src/infrastructure/db/migrate.ts down",
+    "test:unit": "vitest run test/unit",
+    "test:integration": "vitest run test/integration",
+    "test": "npm run test:unit && npm run test:integration"
+  },
+  "dependencies": {
+    "kysely": "^0.29.5",
+    "pg": "^8.13.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@testcontainers/postgresql": "^12.1.0",
+    "@types/node": "^22.10.2",
+    "@types/pg": "^8.11.10",
+    "eslint": "^10.9.1",
+    "eslint-config-prettier": "^10.1.8",
+    "prettier": "^3.9.6",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "typescript-eslint": "^8.68.0",
+    "vitest": "^4.1.11"
+  }
+}

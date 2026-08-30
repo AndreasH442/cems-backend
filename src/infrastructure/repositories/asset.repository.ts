@@ -1,0 +1,55 @@
+import type { Selectable } from "kysely";
+import type { Asset, AssetType } from "../../domain/assets/asset.js";
+import type { AssetId, SiteId, TenantId } from "../../domain/shared/ids.js";
+import type { Db } from "../db/kysely.js";
+import type { AssetsTable } from "../db/schema.js";
+
+function toDomain(row: Selectable<AssetsTable>): Asset {
+  return {
+    id: row.id as AssetId,
+    tenantId: row.tenant_id as TenantId,
+    siteId: row.site_id as SiteId,
+    parentAssetId: (row.parent_asset_id as AssetId | null) ?? null,
+    assetType: row.asset_type as AssetType,
+    name: row.name,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+export interface InsertAssetInput {
+  tenantId: TenantId;
+  siteId: SiteId;
+  assetType: AssetType;
+  name: string;
+  parentAssetId?: AssetId;
+}
+
+export class AssetRepository {
+  constructor(private readonly db: Db) {}
+
+  async insert(input: InsertAssetInput): Promise<Asset> {
+    const row = await this.db
+      .insertInto("assets")
+      .values({
+        tenant_id: input.tenantId,
+        site_id: input.siteId,
+        asset_type: input.assetType,
+        name: input.name,
+        parent_asset_id: input.parentAssetId ?? null,
+      })
+      .returningAll()
+      .executeTakeFirstOrThrow();
+    return toDomain(row);
+  }
+
+  async findById(tenantId: TenantId, id: AssetId): Promise<Asset | null> {
+    const row = await this.db
+      .selectFrom("assets")
+      .selectAll()
+      .where("tenant_id", "=", tenantId)
+      .where("id", "=", id)
+      .executeTakeFirst();
+    return row ? toDomain(row) : null;
+  }
+}
