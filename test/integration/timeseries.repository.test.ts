@@ -60,7 +60,10 @@ describe("timeseries repositories and ingestion services", () => {
 
     const m = await measurementIngestion.ingest({
       tenantId: tenant.id,
+      subjectType: "ASSET",
       assetId: battery.id,
+      componentId: null,
+      measurementPointId: null,
       metricKey: "state_of_charge",
       timestamp: new Date("2026-08-30T10:00:00Z"),
       value: 55,
@@ -71,7 +74,10 @@ describe("timeseries repositories and ingestion services", () => {
     await expect(
       measurementIngestion.ingest({
         tenantId: tenant.id,
+        subjectType: "ASSET",
         assetId: battery.id,
+        componentId: null,
+        measurementPointId: null,
         metricKey: "not_a_real_metric",
         timestamp: new Date(),
         value: 1,
@@ -86,7 +92,10 @@ describe("timeseries repositories and ingestion services", () => {
     await expect(
       measurementIngestion.ingest({
         tenantId: tenant.id,
+        subjectType: "ASSET",
         assetId: battery.id,
+        componentId: null,
+        measurementPointId: null,
         metricKey: "state_of_charge",
         timestamp: new Date(),
         value: 150,
@@ -103,7 +112,10 @@ describe("timeseries repositories and ingestion services", () => {
     const connectorId = crypto.randomUUID() as ConnectorId;
     const first = await measurementIngestion.ingest({
       tenantId: tenant.id,
+      subjectType: "ASSET",
       assetId: battery.id,
+      componentId: null,
+      measurementPointId: null,
       metricKey: "state_of_charge",
       timestamp,
       value: 40,
@@ -114,7 +126,10 @@ describe("timeseries repositories and ingestion services", () => {
     });
     const second = await measurementIngestion.ingest({
       tenantId: tenant.id,
+      subjectType: "ASSET",
       assetId: battery.id,
+      componentId: null,
+      measurementPointId: null,
       metricKey: "state_of_charge",
       timestamp,
       value: 42,
@@ -133,14 +148,18 @@ describe("timeseries repositories and ingestion services", () => {
 
     await controlIntentIngestion.ingest({
       tenantId: tenant.id,
+      subjectType: "ASSET",
       assetId: battery.id,
+      componentId: null,
       metricKey: "active_power_setpoint",
       timestamp: new Date("2026-08-30T10:00:00Z"),
       value: -5,
     });
     await controlIntentIngestion.ingest({
       tenantId: tenant.id,
+      subjectType: "ASSET",
       assetId: battery.id,
+      componentId: null,
       metricKey: "active_power_setpoint",
       timestamp: new Date("2026-08-30T10:10:00Z"),
       value: -8,
@@ -169,7 +188,9 @@ describe("timeseries repositories and ingestion services", () => {
     await setupBattery();
     const state = await assetStates.insert({
       tenantId: tenant.id,
+      subjectType: "ASSET",
       assetId: battery.id,
+      componentId: null,
       category: "AVAILABILITY",
       stateValue: "AVAILABLE",
       validFrom: new Date("2026-08-30T00:00:00Z"),
@@ -182,7 +203,10 @@ describe("timeseries repositories and ingestion services", () => {
     await events.insert({
       tenantId: tenant.id,
       subjectType: "ASSET",
+      siteId: null,
       assetId: battery.id,
+      componentId: null,
+      measurementPointId: null,
       eventType: "EMS_HEARTBEAT",
       occurredAt: new Date("2026-08-30T10:01:00Z"),
       payload: { cpuIdle: 80 },

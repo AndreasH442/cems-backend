@@ -1,18 +1,18 @@
-import type { AssetId, ConnectorId, TenantId } from "../../domain/shared/ids.js";
+import type { ConnectorId, TenantId } from "../../domain/shared/ids.js";
+import type { AssetOrComponentSubject } from "../../domain/shared/subjects.js";
 import type { ControlIntent } from "../../domain/timeseries/control-intent.js";
 import type { ControlIntentRepository } from "../../infrastructure/repositories/control-intent.repository.js";
 import type { MetricDefinitionRepository } from "../../infrastructure/repositories/metric-definition.repository.js";
 
-export interface IngestControlIntentInput {
+export type IngestControlIntentInput = AssetOrComponentSubject & {
   tenantId: TenantId;
-  assetId: AssetId;
   metricKey: string;
   timestamp: Date;
   value: number;
   connectorId?: ConnectorId;
   vendorObjectId?: string;
   vendorSensorId?: string;
-}
+};
 
 /** Punktuelle Zeitreihe wie Measurement (ADR-007) — no interval-close logic. */
 export class ControlIntentIngestionService {
@@ -34,11 +34,8 @@ export class ControlIntentIngestionService {
     }
 
     return this.controlIntents.upsert({
-      tenantId: input.tenantId,
-      assetId: input.assetId,
+      ...input,
       metricDefinitionId: metric.id,
-      timestamp: input.timestamp,
-      value: input.value,
       ...(input.connectorId ? { connectorId: input.connectorId } : {}),
       ...(input.vendorObjectId ? { vendorObjectId: input.vendorObjectId } : {}),
       ...(input.vendorSensorId ? { vendorSensorId: input.vendorSensorId } : {}),

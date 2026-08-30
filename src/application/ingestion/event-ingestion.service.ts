@@ -17,7 +17,10 @@ export class EventIngestionService {
     return this.events.insert({
       tenantId: input.tenantId,
       subjectType: "ASSET",
+      siteId: null,
       assetId: input.assetId,
+      componentId: null,
+      measurementPointId: null,
       eventType: "EMS_HEARTBEAT",
       occurredAt: input.occurredAt,
       ...(input.payload ? { payload: input.payload } : {}),

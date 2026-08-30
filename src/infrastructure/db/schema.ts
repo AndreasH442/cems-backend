@@ -69,6 +69,8 @@ export interface VendorObjectMappingsTable {
   mapping_status: Generated<string>;
   target_type: string | null;
   target_asset_id: string | null;
+  target_component_id: string | null;
+  target_measurement_point_id: string | null;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
 }
@@ -90,7 +92,9 @@ export interface MeasurementsTable {
   id: Generated<string>;
   tenant_id: string;
   subject_type: Generated<string>;
-  asset_id: string;
+  asset_id: string | null;
+  component_id: string | null;
+  measurement_point_id: string | null;
   metric_definition_id: string;
   timestamp: Date;
   value: number;
@@ -104,7 +108,8 @@ export interface ControlIntentsTable {
   id: Generated<string>;
   tenant_id: string;
   subject_type: Generated<string>;
-  asset_id: string;
+  asset_id: string | null;
+  component_id: string | null;
   metric_definition_id: string;
   timestamp: Date;
   value: number;
@@ -116,7 +121,9 @@ export interface ControlIntentsTable {
 export interface AssetStatesTable {
   id: Generated<string>;
   tenant_id: string;
-  asset_id: string;
+  subject_type: Generated<string>;
+  asset_id: string | null;
+  component_id: string | null;
   category: string;
   state_value: string;
   valid_from: Date;
@@ -131,6 +138,8 @@ export interface EventsTable {
   subject_type: string;
   site_id: string | null;
   asset_id: string | null;
+  component_id: string | null;
+  measurement_point_id: string | null;
   event_type: string;
   occurred_at: Date;
   payload: Generated<unknown>;
@@ -223,11 +232,55 @@ export interface CaseStatusHistoryTable {
 }
 
 /** Grows one table per domain slice; see docs/data-model.md for the full target set. */
+export interface ComponentsTable {
+  id: Generated<string>;
+  tenant_id: string;
+  asset_id: string;
+  component_type: string;
+  name: string;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
+export interface MeasurementPointsTable {
+  id: Generated<string>;
+  tenant_id: string;
+  site_id: string;
+  name: string;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
+export interface AssetMeasurementPointsTable {
+  id: Generated<string>;
+  tenant_id: string;
+  asset_id: string;
+  measurement_point_id: string;
+  relation_type: string;
+  valid_from: Date;
+  valid_until: Date | null;
+  created_at: Generated<Date>;
+}
+
+export interface MeasurementPointMetersTable {
+  id: Generated<string>;
+  tenant_id: string;
+  measurement_point_id: string;
+  meter_asset_id: string;
+  valid_from: Date;
+  valid_until: Date | null;
+  created_at: Generated<Date>;
+}
+
 export interface Database {
   tenants: TenantsTable;
   organizations: OrganizationsTable;
   sites: SitesTable;
   assets: AssetsTable;
+  components: ComponentsTable;
+  measurement_points: MeasurementPointsTable;
+  asset_measurement_points: AssetMeasurementPointsTable;
+  measurement_point_meters: MeasurementPointMetersTable;
   metric_definitions: MetricDefinitionsTable;
   connectors: ConnectorsTable;
   vendor_object_mappings: VendorObjectMappingsTable;

@@ -8,7 +8,7 @@ Ziel-Story: Vendor Fixture → Mapping → Canonical Measurement → ControlInte
 
 Tenant, Organization, Site, Asset (BATTERY_SYSTEM, PV_INVERTER, EMS), MetricDefinition (nur tatsächlich benötigte Keys, siehe unten), Connector (WENDEWARE), VendorObjectMapping, VendorMetricMapping, Measurement, ControlIntent, AssetState, Event, Anomaly, Case, CaseSubject, CaseEvidence, Recommendation, Action, Verification, CaseStatusHistory.
 
-Bewusst NICHT Teil dieses Slice: Component, MeasurementPoint, AssetMeasurementPoint, MeasurementPointMeter (für die Battery-/PV-Setpoint-Story nicht nötig – erst relevant, sobald Messpunkt-Hierarchien wie LP-AC-01…15 gebraucht werden).
+Bewusst NICHT Teil dieses Slice: Component, MeasurementPoint, AssetMeasurementPoint, MeasurementPointMeter (für die Battery-/PV-Setpoint-Story nicht nötig – erst relevant, sobald Messpunkt-Hierarchien wie LP-AC-01…15 gebraucht werden). **Nachtrag:** in einem zweiten Slice (Stand 30.08.2026) umgesetzt – siehe `docs/domain-model.md` für die (unveränderte) fachliche Definition; dort war das immer schon vollständig spezifiziert.
 
 Benötigte MetricDefinition-Keys: state_of_charge, active_power_setpoint, active_power_charge, active_power_discharge, temperature_max, availability_state (als AssetState, nicht Metric), active_power_generation, expected_active_power, device_temperature (Heartbeat).
 

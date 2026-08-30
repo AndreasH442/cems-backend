@@ -6,7 +6,11 @@ Herstellerunabhängige B2B-Plattform für den kontinuierlichen technischen und w
 
 Architektur-Review abgeschlossen. Domain Model, Canonical Model, PostgreSQL/TimescaleDB-Schema und Migration & Repository Blueprint liegen konzeptionell vor; die Entscheidungen aus dem Review sind in `docs/decisions/` (ADR-001 bis ADR-010) festgehalten.
 
-**Der erste Vertical Slice (docs/first-vertical-slice.md) ist implementiert und getestet:** TypeScript/Node.js, alle 23 Migrationen (`src/infrastructure/db/migrations/`, Up/Down verifiziert), Domain-Typen, Repositories, der fixture-basierte WendewareMapper, alle drei Auditor-Regeln (ADR-009) sowie die volle Kette Anomaly → Case → Action → Verification. 44 Tests grün (`npm run test:unit`, `npm run test:integration`) – siehe AGENTS.md für die Kommandos. Weiterhin **kein Frontend, keine HTTP-API-Schicht, kein Auth-System, keine RLS-Policies** (siehe "Nicht bauen" in docs/first-vertical-slice.md).
+**Der erste Vertical Slice (docs/first-vertical-slice.md) ist implementiert und getestet:** TypeScript/Node.js, Domain-Typen, Repositories, der fixture-basierte WendewareMapper, alle drei Auditor-Regeln (ADR-009) sowie die volle Kette Anomaly → Case → Action → Verification.
+
+**Zweiter Slice (Component/MeasurementPoint) ebenfalls umgesetzt:** die in `docs/domain-model.md` schon immer spezifizierten, im ersten Slice bewusst ausgelassenen Entities Component, MeasurementPoint, AssetMeasurementPoint, MeasurementPointMeter – inklusive Erweiterung von Measurement/ControlIntent/AssetState/Event/VendorObjectMapping auf die vollen XOR-Subject-Varianten (z. B. Measurement jetzt gegen Asset, Component oder MeasurementPoint wie LP-AC-01…15).
+
+Insgesamt 32 Migrationen (`src/infrastructure/db/migrations/`, Up/Down verifiziert), 59 Tests grün (`npm run test:unit`, `npm run test:integration`) – siehe AGENTS.md für die Kommandos. Weiterhin **kein Frontend, keine HTTP-API-Schicht, kein Auth-System, keine RLS-Policies** (siehe "Nicht bauen" in docs/first-vertical-slice.md).
 
 ## Bevor hier Code entsteht
 

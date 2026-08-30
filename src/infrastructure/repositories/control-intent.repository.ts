@@ -1,14 +1,21 @@
 import type { Selectable } from "kysely";
 import type { ControlIntent } from "../../domain/timeseries/control-intent.js";
-import type { AssetId, ConnectorId, ControlIntentId, MetricDefinitionId, TenantId } from "../../domain/shared/ids.js";
+import type { AssetOrComponentSubject } from "../../domain/shared/subjects.js";
+import type {
+  AssetId,
+  ComponentId,
+  ConnectorId,
+  ControlIntentId,
+  MetricDefinitionId,
+  TenantId,
+} from "../../domain/shared/ids.js";
 import type { Db } from "../db/kysely.js";
 import type { ControlIntentsTable } from "../db/schema.js";
 
 function toDomain(row: Selectable<ControlIntentsTable>): ControlIntent {
-  return {
+  const base = {
     id: row.id as ControlIntentId,
     tenantId: row.tenant_id as TenantId,
-    assetId: row.asset_id as AssetId,
     metricDefinitionId: row.metric_definition_id as MetricDefinitionId,
     timestamp: row.timestamp,
     value: row.value,
@@ -16,18 +23,21 @@ function toDomain(row: Selectable<ControlIntentsTable>): ControlIntent {
     vendorObjectId: row.vendor_object_id,
     vendorSensorId: row.vendor_sensor_id,
   };
+  if (row.subject_type === "COMPONENT") {
+    return { ...base, subjectType: "COMPONENT", assetId: null, componentId: row.component_id as ComponentId };
+  }
+  return { ...base, subjectType: "ASSET", assetId: row.asset_id as AssetId, componentId: null };
 }
 
-export interface UpsertControlIntentInput {
+export type UpsertControlIntentInput = AssetOrComponentSubject & {
   tenantId: TenantId;
-  assetId: AssetId;
   metricDefinitionId: MetricDefinitionId;
   timestamp: Date;
   value: number;
   connectorId?: ConnectorId;
   vendorObjectId?: string;
   vendorSensorId?: string;
-}
+};
 
 export class ControlIntentRepository {
   constructor(private readonly db: Db) {}
@@ -36,7 +46,9 @@ export class ControlIntentRepository {
   async upsert(input: UpsertControlIntentInput): Promise<ControlIntent> {
     const values = {
       tenant_id: input.tenantId,
+      subject_type: input.subjectType,
       asset_id: input.assetId,
+      component_id: input.componentId,
       metric_definition_id: input.metricDefinitionId,
       timestamp: input.timestamp,
       value: input.value,

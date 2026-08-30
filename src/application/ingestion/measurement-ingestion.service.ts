@@ -1,11 +1,11 @@
-import type { AssetId, ConnectorId, TenantId } from "../../domain/shared/ids.js";
+import type { ConnectorId, TenantId } from "../../domain/shared/ids.js";
+import type { AssetComponentOrMeasurementPointSubject } from "../../domain/shared/subjects.js";
 import type { Measurement, MeasurementQuality } from "../../domain/timeseries/measurement.js";
 import type { MeasurementRepository } from "../../infrastructure/repositories/measurement.repository.js";
 import type { MetricDefinitionRepository } from "../../infrastructure/repositories/metric-definition.repository.js";
 
-export interface IngestMeasurementInput {
+export type IngestMeasurementInput = AssetComponentOrMeasurementPointSubject & {
   tenantId: TenantId;
-  assetId: AssetId;
   metricKey: string;
   timestamp: Date;
   value: number;
@@ -13,7 +13,7 @@ export interface IngestMeasurementInput {
   connectorId?: ConnectorId;
   vendorObjectId?: string;
   vendorSensorId?: string;
-}
+};
 
 /** Resolves the canonical metric key against the curated registry and enforces its bounds before writing. */
 export class MeasurementIngestionService {
@@ -35,12 +35,8 @@ export class MeasurementIngestionService {
     }
 
     return this.measurements.upsert({
-      tenantId: input.tenantId,
-      assetId: input.assetId,
+      ...input,
       metricDefinitionId: metric.id,
-      timestamp: input.timestamp,
-      value: input.value,
-      quality: input.quality,
       ...(input.connectorId ? { connectorId: input.connectorId } : {}),
       ...(input.vendorObjectId ? { vendorObjectId: input.vendorObjectId } : {}),
       ...(input.vendorSensorId ? { vendorSensorId: input.vendorSensorId } : {}),

@@ -21,3 +21,7 @@ export type RecommendationId = Brand<string, "RecommendationId">;
 export type ActionId = Brand<string, "ActionId">;
 export type VerificationId = Brand<string, "VerificationId">;
 export type CaseStatusHistoryId = Brand<string, "CaseStatusHistoryId">;
+export type ComponentId = Brand<string, "ComponentId">;
+export type MeasurementPointId = Brand<string, "MeasurementPointId">;
+export type AssetMeasurementPointId = Brand<string, "AssetMeasurementPointId">;
+export type MeasurementPointMeterId = Brand<string, "MeasurementPointMeterId">;

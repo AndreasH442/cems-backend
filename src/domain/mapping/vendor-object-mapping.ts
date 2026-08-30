@@ -1,4 +1,11 @@
-import type { AssetId, ConnectorId, TenantId, VendorObjectMappingId } from "../shared/ids.js";
+import type {
+  AssetId,
+  ComponentId,
+  ConnectorId,
+  MeasurementPointId,
+  TenantId,
+  VendorObjectMappingId,
+} from "../shared/ids.js";
 
 /** The six-value registry (docs/domain-model.md, "mapping_status") — no other values are valid. */
 export const MAPPING_STATUSES = [
@@ -24,17 +31,38 @@ interface VendorObjectMappingBase {
 /** DISCOVERED/UNMAPPED/REJECTED carry no target (docs/domain-model.md). */
 export interface UnmappedVendorObjectMapping extends VendorObjectMappingBase {
   readonly mappingStatus: "DISCOVERED" | "UNMAPPED" | "REJECTED";
+  readonly targetType: null;
   readonly targetAssetId: null;
+  readonly targetComponentId: null;
+  readonly targetMeasurementPointId: null;
 }
 
-/**
- * This slice only maps to Asset (Component/MeasurementPoint don't exist yet — see
- * docs/first-vertical-slice.md), so the target is modeled as a plain nullable asset id today;
- * a future slice adds targetComponentId/targetMeasurementPointId alongside it.
- */
-export interface MappedVendorObjectMapping extends VendorObjectMappingBase {
+/** Vendor Object -> Asset XOR Component XOR MeasurementPoint (docs/domain-model.md). */
+export interface MappedToAssetVendorObjectMapping extends VendorObjectMappingBase {
   readonly mappingStatus: "AUTO_MAPPED" | "MANUAL_MAPPED" | "VERIFIED";
+  readonly targetType: "ASSET";
   readonly targetAssetId: AssetId;
+  readonly targetComponentId: null;
+  readonly targetMeasurementPointId: null;
 }
+
+export interface MappedToComponentVendorObjectMapping extends VendorObjectMappingBase {
+  readonly mappingStatus: "AUTO_MAPPED" | "MANUAL_MAPPED" | "VERIFIED";
+  readonly targetType: "COMPONENT";
+  readonly targetAssetId: null;
+  readonly targetComponentId: ComponentId;
+  readonly targetMeasurementPointId: null;
+}
+
+export interface MappedToMeasurementPointVendorObjectMapping extends VendorObjectMappingBase {
+  readonly mappingStatus: "AUTO_MAPPED" | "MANUAL_MAPPED" | "VERIFIED";
+  readonly targetType: "MEASUREMENT_POINT";
+  readonly targetAssetId: null;
+  readonly targetComponentId: null;
+  readonly targetMeasurementPointId: MeasurementPointId;
+}
+
+export type MappedVendorObjectMapping =
+  MappedToAssetVendorObjectMapping | MappedToComponentVendorObjectMapping | MappedToMeasurementPointVendorObjectMapping;
 
 export type VendorObjectMapping = UnmappedVendorObjectMapping | MappedVendorObjectMapping;

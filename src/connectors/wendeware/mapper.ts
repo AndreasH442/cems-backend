@@ -1,7 +1,8 @@
 import type { ControlIntentIngestionService } from "../../application/ingestion/control-intent-ingestion.service.js";
 import type { MeasurementIngestionService } from "../../application/ingestion/measurement-ingestion.service.js";
 import type { ConnectorId, TenantId } from "../../domain/shared/ids.js";
-import type { VendorObjectMapping } from "../../domain/mapping/vendor-object-mapping.js";
+import type { MappedVendorObjectMapping, VendorObjectMapping } from "../../domain/mapping/vendor-object-mapping.js";
+import type { AssetComponentOrMeasurementPointSubject, AssetOrComponentSubject } from "../../domain/shared/subjects.js";
 import type { MetricDefinitionRepository } from "../../infrastructure/repositories/metric-definition.repository.js";
 import type { VendorMetricMappingRepository } from "../../infrastructure/repositories/vendor-metric-mapping.repository.js";
 import type { VendorObjectMappingRepository } from "../../infrastructure/repositories/vendor-object-mapping.repository.js";
@@ -22,6 +23,41 @@ export interface VendorUnitConversion {
 /** canonical = raw * unitFactor * signMultiplier + unitOffset. Pure — unit-tested directly. */
 export function convertVendorValue(rawValue: number, conversion: VendorUnitConversion): number {
   return rawValue * conversion.unitFactor * conversion.signMultiplier + conversion.unitOffset;
+}
+
+/** Measurement supports Asset XOR Component XOR MeasurementPoint — every mapped target works. */
+function toMeasurementSubject(mapping: MappedVendorObjectMapping): AssetComponentOrMeasurementPointSubject {
+  switch (mapping.targetType) {
+    case "ASSET":
+      return { subjectType: "ASSET", assetId: mapping.targetAssetId, componentId: null, measurementPointId: null };
+    case "COMPONENT":
+      return {
+        subjectType: "COMPONENT",
+        assetId: null,
+        componentId: mapping.targetComponentId,
+        measurementPointId: null,
+      };
+    case "MEASUREMENT_POINT":
+      return {
+        subjectType: "MEASUREMENT_POINT",
+        assetId: null,
+        componentId: null,
+        measurementPointId: mapping.targetMeasurementPointId,
+      };
+  }
+}
+
+/** ControlIntent only supports Asset XOR Component (docs/domain-model.md: MeasurementPoint "nicht steuerbar"). */
+function toControlIntentSubject(mapping: MappedVendorObjectMapping): AssetOrComponentSubject {
+  if (mapping.targetType === "MEASUREMENT_POINT") {
+    throw new Error(
+      `vendor_object_mapping ${mapping.id} targets a MeasurementPoint, but its metric is a ControlIntent — MeasurementPoint is not steuerbar (docs/domain-model.md)`,
+    );
+  }
+  if (mapping.targetType === "ASSET") {
+    return { subjectType: "ASSET", assetId: mapping.targetAssetId, componentId: null };
+  }
+  return { subjectType: "COMPONENT", assetId: null, componentId: mapping.targetComponentId };
 }
 
 export interface WendewareMapperDeps {
@@ -75,11 +111,11 @@ export class WendewareMapper {
         discovered.push(objectMapping);
       }
 
-      if (objectMapping.targetAssetId === null) {
+      if (objectMapping.targetType === null) {
         skippedSensors += object.sensors.length;
         continue;
       }
-      const targetAssetId = objectMapping.targetAssetId;
+      const mapping = objectMapping;
       const vendorObjectMappingId = objectMapping.id;
 
       for (const sensor of object.sensors) {
@@ -103,8 +139,8 @@ export class WendewareMapper {
 
         if (CONTROL_INTENT_METRIC_KEYS.has(metric.key)) {
           await this.deps.controlIntentIngestion.ingest({
+            ...toControlIntentSubject(mapping),
             tenantId,
-            assetId: targetAssetId,
             metricKey: metric.key,
             timestamp,
             value,
@@ -115,8 +151,8 @@ export class WendewareMapper {
           controlIntentsIngested += 1;
         } else {
           await this.deps.measurementIngestion.ingest({
+            ...toMeasurementSubject(mapping),
             tenantId,
-            assetId: targetAssetId,
             metricKey: metric.key,
             timestamp,
             value,

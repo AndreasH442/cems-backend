@@ -33,6 +33,11 @@ import { getTestDb, resetDatabase, stopTestDb } from "./support/test-db.js";
 
 const GRACE_WINDOW_MS = 60_000;
 
+/** Shorthand for the ASSET-subject fields every ingest call in this file needs. */
+function assetSubject(assetId: AssetId) {
+  return { subjectType: "ASSET" as const, assetId, componentId: null };
+}
+
 describe("Digital Auditor end-to-end (Anomaly -> Case -> Action -> Verification)", () => {
   let db: Db;
   let assets: AssetRepository;
@@ -186,14 +191,15 @@ describe("Digital Auditor end-to-end (Anomaly -> Case -> Action -> Verification)
 
     await controlIntentIngestion.ingest({
       tenantId: tenant.id,
-      assetId: battery.id,
+      ...assetSubject(battery.id),
       metricKey: "active_power_setpoint",
       timestamp: t0,
       value: -5,
     });
     await measurementIngestion.ingest({
       tenantId: tenant.id,
-      assetId: battery.id,
+      ...assetSubject(battery.id),
+      measurementPointId: null,
       metricKey: "active_power_charge",
       timestamp: new Date(t0.getTime() + 10_000),
       value: 0,
@@ -201,7 +207,8 @@ describe("Digital Auditor end-to-end (Anomaly -> Case -> Action -> Verification)
     });
     await measurementIngestion.ingest({
       tenantId: tenant.id,
-      assetId: battery.id,
+      ...assetSubject(battery.id),
+      measurementPointId: null,
       metricKey: "active_power_discharge",
       timestamp: new Date(t0.getTime() + 10_000),
       value: 5.1,
@@ -218,14 +225,15 @@ describe("Digital Auditor end-to-end (Anomaly -> Case -> Action -> Verification)
 
     await controlIntentIngestion.ingest({
       tenantId: tenant.id,
-      assetId: battery.id,
+      ...assetSubject(battery.id),
       metricKey: "active_power_setpoint",
       timestamp: t0,
       value: -5,
     });
     await measurementIngestion.ingest({
       tenantId: tenant.id,
-      assetId: battery.id,
+      ...assetSubject(battery.id),
+      measurementPointId: null,
       metricKey: "active_power_charge",
       timestamp: new Date(t0.getTime() + 10_000),
       value: 4,
@@ -233,7 +241,8 @@ describe("Digital Auditor end-to-end (Anomaly -> Case -> Action -> Verification)
     });
     await measurementIngestion.ingest({
       tenantId: tenant.id,
-      assetId: battery.id,
+      ...assetSubject(battery.id),
+      measurementPointId: null,
       metricKey: "active_power_discharge",
       timestamp: new Date(t0.getTime() + 10_000),
       value: 0,
@@ -259,14 +268,15 @@ describe("Digital Auditor end-to-end (Anomaly -> Case -> Action -> Verification)
     // Same "not followed" scenario as E2E 3, leading to an anomaly + case.
     await controlIntentIngestion.ingest({
       tenantId: tenant.id,
-      assetId: battery.id,
+      ...assetSubject(battery.id),
       metricKey: "active_power_setpoint",
       timestamp: t0,
       value: -5,
     });
     await measurementIngestion.ingest({
       tenantId: tenant.id,
-      assetId: battery.id,
+      ...assetSubject(battery.id),
+      measurementPointId: null,
       metricKey: "active_power_charge",
       timestamp: new Date(t0.getTime() + 10_000),
       value: 4,
@@ -274,7 +284,8 @@ describe("Digital Auditor end-to-end (Anomaly -> Case -> Action -> Verification)
     });
     await measurementIngestion.ingest({
       tenantId: tenant.id,
-      assetId: battery.id,
+      ...assetSubject(battery.id),
+      measurementPointId: null,
       metricKey: "active_power_discharge",
       timestamp: new Date(t0.getTime() + 10_000),
       value: 0,
@@ -296,14 +307,15 @@ describe("Digital Auditor end-to-end (Anomaly -> Case -> Action -> Verification)
     const t1 = new Date(t0.getTime() + 30_000);
     await controlIntentIngestion.ingest({
       tenantId: tenant.id,
-      assetId: battery.id,
+      ...assetSubject(battery.id),
       metricKey: "active_power_setpoint",
       timestamp: t1,
       value: -5,
     });
     await measurementIngestion.ingest({
       tenantId: tenant.id,
-      assetId: battery.id,
+      ...assetSubject(battery.id),
+      measurementPointId: null,
       metricKey: "active_power_charge",
       timestamp: new Date(t1.getTime() + 10_000),
       value: 0,
@@ -311,7 +323,8 @@ describe("Digital Auditor end-to-end (Anomaly -> Case -> Action -> Verification)
     });
     await measurementIngestion.ingest({
       tenantId: tenant.id,
-      assetId: battery.id,
+      ...assetSubject(battery.id),
+      measurementPointId: null,
       metricKey: "active_power_discharge",
       timestamp: new Date(t1.getTime() + 10_000),
       value: 5.0,
@@ -346,14 +359,15 @@ describe("Digital Auditor end-to-end (Anomaly -> Case -> Action -> Verification)
     // Curtailment setpoint of 10 kW, but the inverter keeps producing 15 kW.
     await controlIntentIngestion.ingest({
       tenantId: tenant.id,
-      assetId: inverter.id,
+      ...assetSubject(inverter.id),
       metricKey: "active_power_setpoint",
       timestamp: t0,
       value: 10,
     });
     await measurementIngestion.ingest({
       tenantId: tenant.id,
-      assetId: inverter.id,
+      ...assetSubject(inverter.id),
+      measurementPointId: null,
       metricKey: "active_power_generation",
       timestamp: new Date(t0.getTime() + 10_000),
       value: 15,
@@ -377,7 +391,10 @@ describe("Digital Auditor end-to-end (Anomaly -> Case -> Action -> Verification)
     await events.insert({
       tenantId: tenant.id,
       subjectType: "ASSET",
+      siteId: null,
       assetId: battery.id,
+      componentId: null,
+      measurementPointId: null,
       eventType: "EMS_HEARTBEAT",
       occurredAt: new Date(windowStart.getTime() + 60_000),
       payload: {},

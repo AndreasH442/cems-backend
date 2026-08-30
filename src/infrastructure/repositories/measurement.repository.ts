@@ -1,14 +1,22 @@
 import type { Selectable } from "kysely";
 import type { Measurement, MeasurementQuality } from "../../domain/timeseries/measurement.js";
-import type { AssetId, ConnectorId, MeasurementId, MetricDefinitionId, TenantId } from "../../domain/shared/ids.js";
+import type { AssetComponentOrMeasurementPointSubject } from "../../domain/shared/subjects.js";
+import type {
+  AssetId,
+  ComponentId,
+  ConnectorId,
+  MeasurementId,
+  MeasurementPointId,
+  MetricDefinitionId,
+  TenantId,
+} from "../../domain/shared/ids.js";
 import type { Db } from "../db/kysely.js";
 import type { MeasurementsTable } from "../db/schema.js";
 
 function toDomain(row: Selectable<MeasurementsTable>): Measurement {
-  return {
+  const base = {
     id: row.id as MeasurementId,
     tenantId: row.tenant_id as TenantId,
-    assetId: row.asset_id as AssetId,
     metricDefinitionId: row.metric_definition_id as MetricDefinitionId,
     timestamp: row.timestamp,
     value: row.value,
@@ -17,11 +25,35 @@ function toDomain(row: Selectable<MeasurementsTable>): Measurement {
     vendorObjectId: row.vendor_object_id,
     vendorSensorId: row.vendor_sensor_id,
   };
+  if (row.subject_type === "COMPONENT") {
+    return {
+      ...base,
+      subjectType: "COMPONENT",
+      assetId: null,
+      componentId: row.component_id as ComponentId,
+      measurementPointId: null,
+    };
+  }
+  if (row.subject_type === "MEASUREMENT_POINT") {
+    return {
+      ...base,
+      subjectType: "MEASUREMENT_POINT",
+      assetId: null,
+      componentId: null,
+      measurementPointId: row.measurement_point_id as MeasurementPointId,
+    };
+  }
+  return {
+    ...base,
+    subjectType: "ASSET",
+    assetId: row.asset_id as AssetId,
+    componentId: null,
+    measurementPointId: null,
+  };
 }
 
-export interface UpsertMeasurementInput {
+export type UpsertMeasurementInput = AssetComponentOrMeasurementPointSubject & {
   tenantId: TenantId;
-  assetId: AssetId;
   metricDefinitionId: MetricDefinitionId;
   timestamp: Date;
   value: number;
@@ -30,7 +62,7 @@ export interface UpsertMeasurementInput {
   connectorId?: ConnectorId;
   vendorObjectId?: string;
   vendorSensorId?: string;
-}
+};
 
 export class MeasurementRepository {
   constructor(private readonly db: Db) {}
@@ -43,7 +75,10 @@ export class MeasurementRepository {
   async upsert(input: UpsertMeasurementInput): Promise<Measurement> {
     const values = {
       tenant_id: input.tenantId,
+      subject_type: input.subjectType,
       asset_id: input.assetId,
+      component_id: input.componentId,
+      measurement_point_id: input.measurementPointId,
       metric_definition_id: input.metricDefinitionId,
       timestamp: input.timestamp,
       value: input.value,
