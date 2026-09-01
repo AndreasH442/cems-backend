@@ -16,11 +16,30 @@ import { getTestDb, resetDatabase, stopTestDb } from "./support/test-db.js";
  * expected) and one in the future (now + 2h, quality=ESTIMATED expected). Shape matches
  * docs/data-requirements-open-meteo.md. No real coordinates, no real customer data.
  */
-function mockFetch(): Promise<Response> {
+function mockFetch(url: string | URL | Request): Promise<Response> {
+  const href = typeof url === "string" ? url : url instanceof URL ? url.href : url.url;
   const now = new Date();
   const past = new Date(now.getTime() - 30 * 60_000);
   const future = new Date(now.getTime() + 2 * 60 * 60_000);
   const toLocalIso = (d: Date) => d.toISOString().slice(0, 16);
+
+  if (href.includes("archive-api.open-meteo.com")) {
+    return Promise.resolve(
+      new Response(
+        JSON.stringify({
+          utc_offset_seconds: 0,
+          hourly: {
+            time: ["2026-08-15T10:00", "2026-08-15T11:00"],
+            global_tilted_irradiance: [400, 450],
+            temperature_2m: [19, 20],
+            wind_speed_10m: [3, 3.5],
+            cloud_cover: [20, 25],
+          },
+        }),
+        { status: 200 },
+      ),
+    );
+  }
 
   return Promise.resolve(
     new Response(
@@ -214,5 +233,57 @@ describe("OpenMeteoIngestService (fetch mocked, real DB)", () => {
     expect(result.pvSystemsSkipped).toBe(1);
     expect(result.expectedPowerPointsIngested).toBe(0);
     expect(result.weatherPointsIngested).toBe(8);
+  });
+
+  it("pullArchive ingests hourly ERA5 slots, always as quality=MEASURED", async () => {
+    const { tenant, site } = await createTenantWithSite(db);
+    await sites.updateLocation({ tenantId: tenant.id, id: site.id, latitude: 48.9, longitude: 11.2 });
+    const pvSystem = await assets.insert({
+      tenantId: tenant.id,
+      siteId: site.id,
+      assetType: "PV_SYSTEM",
+      name: "PV-Anlage",
+      configuration: { nominalCapacityKwp: 100, acCapacityKw: 90, tiltDegrees: 10, azimuthDegrees: 0 },
+    });
+    const connector = await connectors.insert({
+      tenantId: tenant.id,
+      vendorType: "OPEN_METEO",
+      name: "Weather Connector",
+      secretReference: "none:no-credentials-needed",
+      siteId: site.id,
+    });
+    const weatherPoint = await measurementPoints.insert({
+      tenantId: tenant.id,
+      siteId: site.id,
+      name: "Standortwetter",
+    });
+
+    const result = await ingest.pullArchive(tenant.id, connector.id, weatherPoint.id, "2026-08-15", "2026-08-15");
+
+    expect(result.skippedReason).toBeNull();
+    expect(result.weatherPointsIngested).toBe(8); // 2 hourly slots x 4 variables
+    expect(result.expectedPowerPointsIngested).toBe(2);
+
+    const weatherRows = await db
+      .selectFrom("measurements")
+      .selectAll()
+      .where("tenant_id", "=", tenant.id)
+      .where("measurement_point_id", "=", weatherPoint.id)
+      .execute();
+    expect(weatherRows).toHaveLength(8);
+    for (const row of weatherRows) {
+      expect(row.quality).toBe("MEASURED");
+    }
+
+    const expectedRows = await db
+      .selectFrom("measurements")
+      .selectAll()
+      .where("tenant_id", "=", tenant.id)
+      .where("asset_id", "=", pvSystem.id)
+      .execute();
+    expect(expectedRows).toHaveLength(2);
+    for (const row of expectedRows) {
+      expect(row.quality).toBe("CALCULATED");
+    }
   });
 });

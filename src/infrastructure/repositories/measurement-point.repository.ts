@@ -42,4 +42,14 @@ export class MeasurementPointRepository {
       .executeTakeFirst();
     return row ? toDomain(row) : null;
   }
+
+  async findBySite(tenantId: TenantId, siteId: SiteId): Promise<MeasurementPoint[]> {
+    const rows = await this.db
+      .selectFrom("measurement_points")
+      .selectAll()
+      .where("tenant_id", "=", tenantId)
+      .where("site_id", "=", siteId)
+      .execute();
+    return rows.map(toDomain);
+  }
 }

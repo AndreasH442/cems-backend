@@ -30,6 +30,8 @@ const SLICE_KEYS = [
   "ambient_temperature",
   "wind_speed",
   "cloud_cover",
+  "curtailment_energy_recoverable",
+  "curtailment_energy_structural",
 ];
 
 describe("metric definition registry (seeded, global — not truncated between tests)", () => {

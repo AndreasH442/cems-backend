@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
+import { classifyCurtailment } from "../../src/application/curtailment/classify-curtailment.js";
+import type { CurtailmentDayResult } from "../../src/application/curtailment/curtailment.service.js";
 import {
+  CURTAILMENT_REGELUNGS_GAP_FLOOR_KWH,
+  evaluateGenerationVsWeatherExpectation,
   evaluateMeasurementMissingWithHeartbeat,
   evaluateSetpointTracking,
   normalizeBatteryActualPower,
@@ -122,5 +126,64 @@ describe("evaluateMeasurementMissingWithHeartbeat", () => {
         heartbeatExists: false,
       }),
     ).toBeNull();
+  });
+});
+
+describe("evaluateGenerationVsWeatherExpectation", () => {
+  const day = new Date("2026-08-15T00:00:00Z");
+
+  function resultFrom(actualPvKwh: number, expectedPvKwh: number, verbrauchKwh: number): CurtailmentDayResult {
+    return {
+      skipped: false,
+      skipReason: null,
+      actualPvKwh,
+      expectedPvKwh,
+      verbrauchKwh,
+      classification: classifyCurtailment(actualPvKwh, expectedPvKwh, verbrauchKwh),
+    };
+  }
+
+  it("returns null when there is no weather data for the day (skipped)", () => {
+    const result = evaluateGenerationVsWeatherExpectation({
+      assetId: ASSET_ID,
+      day,
+      result: {
+        skipped: true,
+        skipReason: "no data",
+        actualPvKwh: 0,
+        expectedPvKwh: 0,
+        verbrauchKwh: 0,
+        classification: null,
+      },
+    });
+    expect(result).toBeNull();
+  });
+
+  it("returns null when the recoverable gap is within tolerance", () => {
+    // expected=100, verbrauch high enough to absorb it all, actual=95 -> regelungsGap=5, well under both the floor and the ratio.
+    const result = evaluateGenerationVsWeatherExpectation({ assetId: ASSET_ID, day, result: resultFrom(95, 100, 200) });
+    expect(result).toBeNull();
+  });
+
+  it("flags an anomaly when the recoverable gap exceeds the materiality threshold", () => {
+    // expected=100, verbrauch=200 (not the limiting factor), actual=40 -> regelungsGap=60, clearly above both the absolute floor and 15% of expected.
+    const result = evaluateGenerationVsWeatherExpectation({ assetId: ASSET_ID, day, result: resultFrom(40, 100, 200) });
+    expect(result?.ruleKey).toBe("PV_GENERATION_VS_WEATHER_V1");
+    expect(result?.assetId).toBe(ASSET_ID);
+    expect(result?.description).toContain("regelungsbedingt");
+    expect(result?.description).toContain("strukturell");
+  });
+
+  it("does not flag on a purely structural (design) gap — that's not a daily anomaly", () => {
+    // expected=150, verbrauch=80 (the real ceiling), actual=80 -> maxUsable=80, regelungsGap=0, designGap=70.
+    const result = evaluateGenerationVsWeatherExpectation({ assetId: ASSET_ID, day, result: resultFrom(80, 150, 80) });
+    expect(result).toBeNull();
+  });
+
+  it("respects the absolute floor for small plants (percentage alone would be too strict)", () => {
+    // expected=10 kWh (tiny plant/day), 15% would be 1.5 kWh, but the 20 kWh floor dominates.
+    const result = evaluateGenerationVsWeatherExpectation({ assetId: ASSET_ID, day, result: resultFrom(8, 10, 50) });
+    expect(result).toBeNull();
+    expect(CURTAILMENT_REGELUNGS_GAP_FLOOR_KWH).toBeGreaterThan(2);
   });
 });

@@ -1,10 +1,11 @@
 import type { AnomalyId, AssetId, CaseId, SiteId, TenantId } from "../shared/ids.js";
 
-/** The three rules of this slice (ADR-009). Versioned keys — open-ended, not a closed registry. */
+/** The three rules of this slice (ADR-009), plus later additions. Versioned keys — open-ended, not a closed registry. */
 export const AUDITOR_RULE_KEYS = [
   "BATTERY_SETPOINT_TRACKING_V1",
   "PV_SETPOINT_VS_ACTUAL_V1",
   "MEASUREMENT_MISSING_WITH_HEARTBEAT_V1",
+  "PV_GENERATION_VS_WEATHER_V1",
 ] as const;
 export type AuditorRuleKey = (typeof AUDITOR_RULE_KEYS)[number];
 

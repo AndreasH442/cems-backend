@@ -78,4 +78,14 @@ export class AssetRepository {
       .execute();
     return rows.map(toDomain);
   }
+
+  async findByParent(tenantId: TenantId, parentAssetId: AssetId): Promise<Asset[]> {
+    const rows = await this.db
+      .selectFrom("assets")
+      .selectAll()
+      .where("tenant_id", "=", tenantId)
+      .where("parent_asset_id", "=", parentAssetId)
+      .execute();
+    return rows.map(toDomain);
+  }
 }

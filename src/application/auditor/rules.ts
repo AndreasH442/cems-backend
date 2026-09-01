@@ -1,3 +1,4 @@
+import type { CurtailmentDayResult } from "../curtailment/curtailment.service.js";
 import type { AssetId } from "../../domain/shared/ids.js";
 import type { AuditorRuleKey } from "../../domain/auditor/anomaly.js";
 
@@ -82,5 +83,44 @@ export function evaluateMeasurementMissingWithHeartbeat(input: MeasurementMissin
     description:
       `Kein Measurement für "${input.metricKey}" zwischen ${input.windowStart.toISOString()} und ` +
       `${input.windowEnd.toISOString()}, obwohl im selben Fenster ein EMS-Heartbeat vorlag.`,
+  };
+}
+
+export const CURTAILMENT_REGELUNGS_GAP_FLOOR_KWH = 20;
+export const CURTAILMENT_REGELUNGS_GAP_RATIO = 0.15;
+
+export interface GenerationVsWeatherInput {
+  readonly assetId: AssetId;
+  readonly day: Date;
+  readonly result: CurtailmentDayResult;
+}
+
+/**
+ * Vergleicht tatsächliche PV-Erzeugung mit der wetterbasierten Erwartung (curtailment.service.ts)
+ * für einen Tag. Schlägt bewusst nur auf den heilbaren Anteil (regelungsGapKwh) an, nicht auf
+ * designGapKwh — eine strukturell überdimensionierte Anlage ist kein täglich neu zu meldender
+ * Vorfall. Die Beschreibung nennt trotzdem beide Anteile als Kontext (die vom Kunden gewünschte
+ * wetterbasierte Erklärung, warum die Erzeugung abweicht).
+ */
+export function evaluateGenerationVsWeatherExpectation(input: GenerationVsWeatherInput): AnomalyCandidate | null {
+  if (input.result.skipped || !input.result.classification) return null; // no weather data — not this rule's concern
+
+  const { actualPvKwh, expectedPvKwh, verbrauchKwh, classification } = input.result;
+  const threshold = Math.max(CURTAILMENT_REGELUNGS_GAP_FLOOR_KWH, expectedPvKwh * CURTAILMENT_REGELUNGS_GAP_RATIO);
+  if (classification.regelungsGapKwh <= threshold) return null;
+
+  const dayLabel = input.day.toISOString().slice(0, 10);
+  return {
+    assetId: input.assetId,
+    ruleKey: "PV_GENERATION_VS_WEATHER_V1",
+    confidence: Math.min(1, classification.regelungsGapKwh / (2 * threshold)),
+    detectedAt: input.day,
+    description:
+      `PV-Erzeugung am ${dayLabel} weicht von der wetterbasierten Erwartung ab: ` +
+      `Ist ${actualPvKwh.toFixed(1)} kWh vs. Erwartung ${expectedPvKwh.toFixed(1)} kWh ` +
+      `(Basis: Open-Meteo + PV-Modell), Standort-Verbrauch ${verbrauchKwh.toFixed(1)} kWh. ` +
+      `Davon ${classification.regelungsGapKwh.toFixed(1)} kWh regelungsbedingt (heilbar, ` +
+      `Toleranz ${threshold.toFixed(1)} kWh) und ${classification.designGapKwh.toFixed(1)} kWh ` +
+      `strukturell nicht behebbar (Anlage überdimensioniert relativ zum Verbrauch).`,
   };
 }

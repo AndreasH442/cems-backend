@@ -4,7 +4,10 @@ Vendor-neutrale API-Mechanik für die wetterbasierte PV-Erwartung (ADR-012). Ges
 
 ## API-Mechanik
 
-**Endpoint:** `GET https://api.open-meteo.com/v1/forecast`
+**Endpunkte:**
+
+- `GET https://api.open-meteo.com/v1/forecast` – Forecast-API, 15-Minuten-Raster (`minutely_15`), nah- bis mittelfristig (`past_days`+`forecast_days`).
+- `GET https://archive-api.open-meteo.com/v1/archive` – ERA5-Reanalyse, stündliches Raster (`hourly`), für rückwirkende Curtailment-Analyse über beliebige historische Zeiträume (`start_date`/`end_date`). 2–5 Tage Lag – sehr aktuelle Tage liefern dort noch nichts, dafür bleibt die Forecast-API (`past_days`) zuständig. Gleiche Variablen, gleiche Azimuth-Konvention, gleiches Antwortformat wie die Forecast-API.
 
 **Auth:** keine – öffentliches Free-Tier, kein API-Key nötig.
 
@@ -23,7 +26,7 @@ Vendor-neutrale API-Mechanik für die wetterbasierte PV-Erwartung (ADR-012). Ges
 
 **Kosten/Limits:** gratis im Rahmen des Free-Tiers, keine harten Rate-Limits dokumentiert; sinnvoller Cache/Pull-Rhythmus liegt im Minuten- bis Stundenbereich, nicht sekündlich.
 
-**Nicht angebunden (bewusst, siehe Plan):** Die ERA5-Archive-API (`archive-api.open-meteo.com`, stündliche historische Reanalyse-Daten, 2–5 Tage Lag) für rückwirkende Curtailment-Analyse – erst wenn ein konkreter Bedarf dafür entsteht.
+**Qualität nach Zeitpunkt:** Forecast-Slots werden als `MEASURED` (bereits verstrichen) oder `ESTIMATED` (noch in der Zukunft) ingestiert. Archive-Slots sind immer `MEASURED` – ERA5-Reanalyse bereits vergangener Zeit ist eine belastbare Rekonstruktion, keine Schätzung.
 
 ## PV-Leistungsmodell (Sandia-Zelltemperatur + PVWatts DC→AC)
 

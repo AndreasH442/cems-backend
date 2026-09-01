@@ -27,7 +27,9 @@ temperature, temperature_min, temperature_max, temperature_average
 
 ## PV / PERFORMANCE
 
-expected_active_power (im MVP: Measurement mit quality=CALCULATED, kein Forecast-Objekt), performance_ratio, curtailment_power, curtailment_energy
+expected_active_power (im MVP: Measurement mit quality=CALCULATED, kein Forecast-Objekt; wetterbasiert seit ADR-012), performance_ratio, curtailment_power, curtailment_energy
+
+curtailment_energy_recoverable, curtailment_energy_structural (kWh; Regelungs- vs. Design-Curtailment, `src/application/curtailment/classify-curtailment.ts` — die generischen `curtailment_power`/`curtailment_energy` oben bleiben ungenutzt, da sie diese Unterscheidung nicht abbilden)
 
 ## ECONOMIC
 

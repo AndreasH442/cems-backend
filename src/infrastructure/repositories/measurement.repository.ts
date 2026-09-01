@@ -139,4 +139,57 @@ export class MeasurementRepository {
       .executeTakeFirst();
     return row ? toDomain(row) : null;
   }
+
+  /**
+   * Deletes any existing row at this exact (subject, metric, timestamp) — for CALCULATED values
+   * with no connector provenance (e.g. curtailment.service.ts), which therefore can't use the
+   * vendor-natural-key upsert `upsert()` relies on. Callers delete-then-insert to make re-running
+   * for the same day idempotent instead of accumulating duplicate rows.
+   */
+  async deleteAt(
+    tenantId: TenantId,
+    metricDefinitionId: MetricDefinitionId,
+    subject: { assetId: AssetId } | { measurementPointId: MeasurementPointId },
+    timestamp: Date,
+  ): Promise<void> {
+    let query = this.db
+      .deleteFrom("measurements")
+      .where("tenant_id", "=", tenantId)
+      .where("metric_definition_id", "=", metricDefinitionId)
+      .where("timestamp", "=", timestamp);
+    query =
+      "assetId" in subject
+        ? query.where("asset_id", "=", subject.assetId)
+        : query.where("measurement_point_id", "=", subject.measurementPointId);
+    await query.execute();
+  }
+
+  /**
+   * All readings for one metric on one subject within a window, ordered by timestamp ascending.
+   * Used by the curtailment service (application/curtailment) for two purposes: counter
+   * differencing (last - first, for cumulative `_total` metrics) and trapezoidal power-to-energy
+   * integration (for `expected_active_power`) — both need the full ordered set, not just the
+   * endpoints, since the number of points and their spacing varies by data source.
+   */
+  async findAllInWindow(
+    tenantId: TenantId,
+    metricDefinitionId: MetricDefinitionId,
+    subject: { assetId: AssetId } | { measurementPointId: MeasurementPointId },
+    from: Date,
+    to: Date,
+  ): Promise<Measurement[]> {
+    let query = this.db
+      .selectFrom("measurements")
+      .selectAll()
+      .where("tenant_id", "=", tenantId)
+      .where("metric_definition_id", "=", metricDefinitionId)
+      .where("timestamp", ">=", from)
+      .where("timestamp", "<=", to);
+    query =
+      "assetId" in subject
+        ? query.where("asset_id", "=", subject.assetId)
+        : query.where("measurement_point_id", "=", subject.measurementPointId);
+    const rows = await query.orderBy("timestamp", "asc").execute();
+    return rows.map(toDomain);
+  }
 }
