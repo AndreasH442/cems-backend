@@ -64,8 +64,8 @@ async function main(): Promise<void> {
   console.log("");
   console.log("=== Schritt 2: Alle real vorhandenen sensor_type.typeId-Kategorien (kind=16, ungefiltert) ===");
   const all = await rawGet(token, "/sensors", { "filter[ems_ids]": emsId, "filter[kind]": "16" });
-  const data = ((all.json as { data?: JsonApiResource[] })?.data ?? []) as JsonApiResource[];
-  const included = ((all.json as { included?: JsonApiResource[] })?.included ?? []) as JsonApiResource[];
+  const data = (all.json as { data?: JsonApiResource[] })?.data ?? [];
+  const included = (all.json as { included?: JsonApiResource[] })?.included ?? [];
   const sensorTypeLookup = new Map<string, string>();
   for (const inc of included) {
     if (inc.type === "sensor_types") {
@@ -121,6 +121,48 @@ async function main(): Promise<void> {
     console.log(
       `  ${typeId}: HTTP ${check.status}${check.ok ? " -> counter-like, bestaetigt" : " -> NICHT counter-like"}`,
     );
+  }
+
+  // Wider window so we actually see numeric values, not just HTTP status.
+  const wideFrom = new Date(Date.now() - 6 * 60 * 60_000).toISOString();
+  const wideTo = new Date().toISOString();
+
+  console.log("");
+  console.log("=== Schritt 5: liefert avg_mm_gauge_seqs echte Werte fuer battery_soc (6h Fenster)? ===");
+  const gaugeWide = await rawGet(token, "/sensors/measurements/seqs/avg_mm_gauge_seqs", {
+    "filter[sensorIds]": gaugeSensorId,
+    "filter[tFilter][dateFrom]": wideFrom,
+    "filter[tFilter][dateTo]": wideTo,
+    "filter[resolution]": "15 minutes",
+    "filter[tz]": "Europe/Berlin",
+  });
+  console.log(`  HTTP ${gaugeWide.status}`);
+  console.log(`  ${gaugeWide.text.slice(0, 800)}`);
+
+  console.log("");
+  console.log(
+    "=== Schritt 6: welcher Typ liefert plausible kW-Werte aus einem PV-Zaehler-Sensor? (nur Werte-Array, nicht Zeitstempel) ===",
+  );
+  const pvSensorId = typeIdToSensorId.get("pv_meter_supply");
+  if (pvSensorId) {
+    for (const type of [
+      "power_mm_counter_seqs",
+      "delta_per_time_mm_counter_seqs",
+      "interpolated_mm_counter_seqs",
+      "delta_mm_counter_seqs",
+    ]) {
+      const res2 = await rawGet(token, `/sensors/measurements/seqs/${type}`, {
+        "filter[sensorIds]": pvSensorId,
+        "filter[tFilter][dateFrom]": wideFrom,
+        "filter[tFilter][dateTo]": wideTo,
+        "filter[resolution]": "15 minutes",
+        "filter[tz]": "Europe/Berlin",
+      });
+      const attrs = (res2.json as { data?: { attributes?: Record<string, unknown> } } | null)?.data?.attributes;
+      const values = attrs?.[pvSensorId] as number[] | undefined;
+      console.log(`  ${type}: HTTP ${res2.status}`);
+      console.log(`      values=${JSON.stringify(values?.slice(0, 10))}${values && values.length > 10 ? " ..." : ""}`);
+    }
   }
 }
 

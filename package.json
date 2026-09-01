@@ -23,7 +23,8 @@
     "db:logs": "docker compose logs -f db",
     "demo": "tsx scripts/demo.ts",
     "live:setup-customer": "tsx scripts/live-setup-customer.ts",
-    "live:pull": "tsx scripts/live-pull.ts"
+    "live:pull": "tsx scripts/live-pull.ts",
+    "live:run-auditor": "tsx scripts/live-run-auditor.ts"
   },
   "dependencies": {
     "kysely": "^0.29.5",

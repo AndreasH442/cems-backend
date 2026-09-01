@@ -1,5 +1,6 @@
 import type { ConnectorId, TenantId } from "../../domain/shared/ids.js";
 import type { AssetComponentOrMeasurementPointSubject } from "../../domain/shared/subjects.js";
+import { clampToMetricBounds } from "../../domain/metrics/clamp-to-bounds.js";
 import type { Measurement, MeasurementQuality } from "../../domain/timeseries/measurement.js";
 import type { MeasurementRepository } from "../../infrastructure/repositories/measurement.repository.js";
 import type { MetricDefinitionRepository } from "../../infrastructure/repositories/metric-definition.repository.js";
@@ -27,16 +28,12 @@ export class MeasurementIngestionService {
     if (!metric) {
       throw new Error(`Unknown metric key "${input.metricKey}" — not in the canonical registry`);
     }
-    if (metric.minValue !== null && input.value < metric.minValue) {
-      throw new Error(`Value ${input.value} for "${input.metricKey}" is below min ${metric.minValue}`);
-    }
-    if (metric.maxValue !== null && input.value > metric.maxValue) {
-      throw new Error(`Value ${input.value} for "${input.metricKey}" is above max ${metric.maxValue}`);
-    }
+    const value = clampToMetricBounds(input.value, metric);
 
     return this.measurements.upsert({
       ...input,
       metricDefinitionId: metric.id,
+      value,
       ...(input.connectorId ? { connectorId: input.connectorId } : {}),
       ...(input.vendorObjectId ? { vendorObjectId: input.vendorObjectId } : {}),
       ...(input.vendorSensorId ? { vendorSensorId: input.vendorSensorId } : {}),

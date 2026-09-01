@@ -61,6 +61,12 @@ Gegen einen echten Kundenzugang verifiziert (OAuth2-Client mit Scope `email`). D
 
 **Idempotenz-Empfehlung aus dem Test:** Zeitreihen-Pull mit Sicherheitsfenster (einige Stunden vor dem zuletzt gespeicherten Zeitstempel erneut abfragen, da die API verzögert eintreffende Werte nachliefert) plus `INSERT OR IGNORE`/Upsert auf dem natürlichen Schlüssel – deckt sich mit der bereits dokumentierten Dedup-Strategie für `measurements`/`control_intents` in docs/data-model.md.
 
+**Abgeleitete Leistung aus Zählersensoren:** `power_mm_counter_seqs` und `delta_per_time_mm_counter_seqs` liefern bei echten Sensoren identische Werte (01.09.2026 gegenget). Beide sind eine von der API abgeleitete Momentanleistung (W) aus einem kumulativen Zählersensor; `delta_mm_counter_seqs` liefert stattdessen die Intervallenergie (Wh), `interpolated_mm_counter_seqs` den interpolierten kumulativen Rohzähler (großer Wh-Betrag).
+
+**Vorzeichenkonvention bei Setpoint-Sensoren (abgeleitet, nicht offiziell dokumentiert):** Bei einem echten Kunden (01.09.2026) zeigten `pv_setpoint_power`/`battery_setpoint_power`-Sensoren durchgehend das entgegengesetzte Vorzeichen zur tatsächlichen Ist-Leistung derselben physischen Einheit (z. B. Sollwert ≈ −22 kW bei einer Ist-Erzeugung von ≈ +17…20 kW am selben Wechselrichter). Rein rechnerisch als Vorzeichen-Spiegelung erkennbar, nicht als Dokument von Wendeware bestätigt. Für den Connector bedeutet das: `VendorMetricMapping.sign_multiplier = -1` auf Setpoint-Sensoren, damit Soll- und Istwert im CEMS-Domainmodell dieselbe Polarität tragen (Vorzeichenkorrektur ist genau der vorgesehene Zweck von `sign_multiplier`, siehe ADR-004 – kein Sonderfall-Hack).
+
+**IEEE754-Rauschen an dokumentierten Grenzwerten:** Kumulative Zählerwerte (z. B. `energy_charge_total`) können durch die vendorseitige Delta-Berechnung Werte knapp außerhalb der dokumentierten Grenze liefern, die eigentlich exakt der Grenze entsprechen sollten (real beobachtet: `-2.2737367544323206e-16` statt `0`). Kein Datenfehler, sondern Fließkomma-Rundungsrauschen. CEMS toleriert das an der Ingestion-Grenze (`clampToMetricBounds`, Toleranz `1e-6`) und rundet auf die dokumentierte Grenze, lehnt aber echte Grenzverletzungen weiterhin ab.
+
 ## Aktualisierte Wendeware-Eignung
 
 Sehr gut: Netzbezug/-einspeisung, Verbrauchsmessstellen, PV AC-Leistung, BESS-Leistung, EMS Health.

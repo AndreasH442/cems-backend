@@ -106,6 +106,35 @@ export async function listSensors(
   }));
 }
 
+/**
+ * The full, closed set of `.../seqs/<type>` values — confirmed by requesting an invalid one and
+ * reading the API's own error message (01.09.2026), see docs/data-requirements.md. Only the
+ * counter/gauge/power ones are actually used by live-ingest.service.ts; the rest are documented
+ * but unused (interpolated_mm_counter_seqs, delta_mm_counter_seqs).
+ */
+export const WENDEWARE_SERIES_TYPES = [
+  "avg_mm_gauge_seqs",
+  "interpolated_mm_counter_seqs",
+  "energy_mm_counter_seqs",
+  "delta_mm_counter_seqs",
+  "power_mm_counter_seqs",
+  "delta_per_time_mm_counter_seqs",
+] as const;
+export type WendewareSeriesType = (typeof WENDEWARE_SERIES_TYPES)[number];
+
+const VENDOR_SENSOR_ID_SEPARATOR = "#";
+
+/**
+ * The same raw sensor id yields independent value streams depending on which series type it's
+ * queried with (e.g. a counter sensor's cumulative total vs. its derived instantaneous power) —
+ * from CEMS's point of view these are logically distinct "vendor sensors" that happen to share a
+ * wire-level id. Encoding both into the opaque vendor_sensor_id string keeps that distinction
+ * without a schema change — still never interpreted outside src/connectors/wendeware (ADR-004).
+ */
+export function encodeVendorSensorId(sensorId: string, seriesType: WendewareSeriesType): string {
+  return `${sensorId}${VENDOR_SENSOR_ID_SEPARATOR}${seriesType}`;
+}
+
 export interface WendewareLatestReading {
   readonly sensorId: string;
   readonly value: number;
@@ -135,6 +164,7 @@ export function parseLatestValuesResponse(payload: unknown, sensorIds: readonly 
 
 export async function fetchLatestValues(
   token: string,
+  seriesType: WendewareSeriesType,
   sensorIds: readonly string[],
   lookbackMinutes: number,
   apiBase = DEFAULT_API_BASE,
@@ -144,7 +174,7 @@ export async function fetchLatestValues(
 
   const dateTo = new Date();
   const dateFrom = new Date(dateTo.getTime() - lookbackMinutes * 60_000);
-  const payload = await apiGet(token, apiBase, "/sensors/measurements/seqs/energy_mm_counter_seqs", {
+  const payload = await apiGet(token, apiBase, `/sensors/measurements/seqs/${seriesType}`, {
     "filter[sensorIds]": sensorIds.join(","),
     "filter[tFilter][dateFrom]": dateFrom.toISOString(),
     "filter[tFilter][dateTo]": dateTo.toISOString(),

@@ -16,6 +16,8 @@ const SLICE_KEYS = [
   "energy_export_total",
   "energy_import_total",
   "energy_consumption_total",
+  "energy_charge_total",
+  "energy_discharge_total",
 ];
 
 describe("metric definition registry (seeded, global — not truncated between tests)", () => {
