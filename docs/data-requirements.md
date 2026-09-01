@@ -14,7 +14,7 @@ Reale, an einem Projekt verifizierte Datenverfügbarkeit. Nur das hier Dokumenti
 
 **EMS-Heartbeat (Minutentakt):** lokaler Timestamp, EMS-Status, Temperatur, CPU User/System/Idle, Arbeitsspeicher, Storage, Swap, Inodes, Betriebszeit, Load.
 
-**Ladeinfrastruktur:** Geräte-Inventar bestätigt; Ladeleistung/-energie, Connector-Status, Session-Daten, EMS-Limit, Sollwert, Fehlerzustände noch zu prüfen. Vehicle-Live-SOC bleibt ein Gap.
+**Ladeinfrastruktur (geprüft, Stand 01.09.2026):** Die einzelnen Ladepunkte sind exakt die oben genannten `LP-AC-*`/`LP-DC-*`-Objekte – der `sensor_type.typeId` heißt vendorseitig `wallbox_meter_demand`, die menschenlesbaren Labels bei diesem Kunden sind aber identisch mit den bereits dokumentierten Last-/Messpunkten. Kein Hinweis auf separate physische Ladesäulen-Objekte jenseits dieser Messpunkte – konsequent als MeasurementPoint modelliert, nicht als eigenes CHARGING_STATION-Asset (ADR-004: Kategorie-Name allein rechtfertigt keine andere Klassifikation, wenn die real vorgefundene Struktur dem widerspricht). Ladeleistung (`power_mm_counter_seqs` → `active_power_consumption`) und -energie (`energy_mm_counter_seqs` → `energy_consumption_total`) sind bestätigt und liefern plausible Werte (Leerlauf 0 kW, aktive Ladepunkte ~10 kW). Connector-Status, Session-Daten, EMS-Limit, Sollwert und Fehlerzustände sind **geprüft und nicht verfügbar** – die vollständige, geschlossene Liste aller 20 real vorhandenen `sensor_type.typeId`-Werte (siehe unten) enthält keine eigene Kategorie dafür. Vehicle-Live-SOC bleibt aus demselben Grund ein bestätigter Gap, kein offener Prüfpunkt mehr.
 
 ## Wendeware-Objektstruktur
 
@@ -69,9 +69,9 @@ Gegen einen echten Kundenzugang verifiziert (OAuth2-Client mit Scope `email`). D
 
 ## Aktualisierte Wendeware-Eignung
 
-Sehr gut: Netzbezug/-einspeisung, Verbrauchsmessstellen, PV AC-Leistung, BESS-Leistung, EMS Health.
+Sehr gut: Netzbezug/-einspeisung, Verbrauchsmessstellen, PV AC-Leistung, BESS-Leistung, EMS Health, Ladeinfrastruktur-Leistung/-Energie (je Ladepunkt).
 Bestätigt, strategisch wertvoll: PV-/BESS-Leistungssetzpunkt, BESS SOC/SOH/Temperatur/DC-Größen.
-Noch zu prüfen: Charger-Messwerte, Charger Control Intent.
+Bestätigt nicht verfügbar (keine eigene Sensorkategorie): Charger Connector-Status, Session-Daten, Charger Control Intent (Sollwert/Limit), Fehlerzustände.
 Gap: Fahrzeug Live-SOC.
 Ausdrücklich bei CEMS, nicht bei Wendeware: Business Case, ROI/Economics, Digital Auditor, Cases/Actions, Energy Pool, Grid Forecast/Schedule.
 

@@ -8,6 +8,7 @@ import { WendewareMapper } from "../../src/connectors/wendeware/mapper.js";
 import { AssetRepository } from "../../src/infrastructure/repositories/asset.repository.js";
 import { ConnectorRepository } from "../../src/infrastructure/repositories/connector.repository.js";
 import { ControlIntentRepository } from "../../src/infrastructure/repositories/control-intent.repository.js";
+import { MeasurementPointRepository } from "../../src/infrastructure/repositories/measurement-point.repository.js";
 import { MeasurementRepository } from "../../src/infrastructure/repositories/measurement.repository.js";
 import { MetricDefinitionRepository } from "../../src/infrastructure/repositories/metric-definition.repository.js";
 import { VendorMetricMappingRepository } from "../../src/infrastructure/repositories/vendor-metric-mapping.repository.js";
@@ -21,9 +22,11 @@ const CLIENT_SECRET_VAR = "TEST_LIVE_MPG_CLIENT_SECRET";
 /**
  * Synthetic myPowerGrid JSON:API responses, shaped like the confirmed structure in
  * docs/data-requirements.md — no real customer data, no real network calls, no real credentials.
- * One counter sensor ("sensor-pv" on "device-1", category pv_meter_supply) and one gauge sensor
- * ("sensor-soc" on "device-2", category battery_soc) — mirrors the real "one sensor, multiple
- * series types" shape confirmed against the real API.
+ * One counter sensor ("sensor-pv" on "device-1", category pv_meter_supply), one gauge sensor
+ * ("sensor-soc" on "device-2", category battery_soc), and one wallbox counter sensor ("sensor-lp"
+ * on "device-3", category wallbox_meter_demand — the confirmed real-world shape is a MeasurementPoint
+ * like "LP-AC-01", not a distinct charging-station asset, docs/data-requirements.md) — mirrors the
+ * real "one sensor, multiple series types" shape confirmed against the real API.
  */
 function mockFetch(url: string | URL | Request): Promise<Response> {
   const href = typeof url === "string" ? url : url instanceof URL ? url.href : url.url;
@@ -47,12 +50,28 @@ function mockFetch(url: string | URL | Request): Promise<Response> {
   }
   if (href.includes("/sensors/measurements/seqs/energy_mm_counter_seqs")) {
     return Promise.resolve(
-      jsonResponse({ data: { attributes: { datetimes: ["2026-09-01T10:00:00Z"], "sensor-pv": [31_800_000] } } }),
+      jsonResponse({
+        data: {
+          attributes: {
+            datetimes: ["2026-09-01T10:00:00Z"],
+            "sensor-pv": [31_800_000],
+            "sensor-lp": [5_000_000],
+          },
+        },
+      }),
     );
   }
   if (href.includes("/sensors/measurements/seqs/power_mm_counter_seqs")) {
     return Promise.resolve(
-      jsonResponse({ data: { attributes: { datetimes: ["2026-09-01T10:00:00Z"], "sensor-pv": [15_619.58] } } }),
+      jsonResponse({
+        data: {
+          attributes: {
+            datetimes: ["2026-09-01T10:00:00Z"],
+            "sensor-pv": [15_619.58],
+            "sensor-lp": [3_000],
+          },
+        },
+      }),
     );
   }
   if (href.includes("/sensors/measurements/seqs/avg_mm_gauge_seqs")) {
@@ -88,6 +107,20 @@ function mockFetch(url: string | URL | Request): Promise<Response> {
       }),
     );
   }
+  if (href.includes("/sensors") && href.includes("filter%5Bsensor_type%5D%5Btype_id%5D=wallbox_meter_demand")) {
+    return Promise.resolve(
+      jsonResponse({
+        data: [
+          {
+            id: "sensor-lp",
+            type: "sensors",
+            attributes: { label: "LP-AC-01", unit: "Wh" },
+            relationships: { device: { data: { id: "device-3", type: "devices" } } },
+          },
+        ],
+      }),
+    );
+  }
   if (href.includes("/sensors")) {
     // Every other confirmed category (docs/data-requirements.md) — none present in this fixture.
     return Promise.resolve(jsonResponse({ data: [] }));
@@ -102,6 +135,7 @@ function jsonResponse(body: unknown): Response {
 describe("WendewareLiveIngestService (fetch mocked, real DB)", () => {
   let db: Db;
   let assets: AssetRepository;
+  let measurementPoints: MeasurementPointRepository;
   let connectors: ConnectorRepository;
   let objectMappings: VendorObjectMappingRepository;
   let metricMappings: VendorMetricMappingRepository;
@@ -111,6 +145,7 @@ describe("WendewareLiveIngestService (fetch mocked, real DB)", () => {
   beforeAll(async () => {
     db = await getTestDb();
     assets = new AssetRepository(db);
+    measurementPoints = new MeasurementPointRepository(db);
     connectors = new ConnectorRepository(db);
     objectMappings = new VendorObjectMappingRepository(db);
     metricMappings = new VendorMetricMappingRepository(db);
@@ -145,7 +180,7 @@ describe("WendewareLiveIngestService (fetch mocked, real DB)", () => {
     await stopTestDb();
   });
 
-  it("discovers both devices as DISCOVERED on first pull (no mapping yet)", async () => {
+  it("discovers all three devices as DISCOVERED on first pull (no mapping yet)", async () => {
     const { tenant, site } = await createTenantWithSite(db);
     const connector = await connectors.insert({
       tenantId: tenant.id,
@@ -158,8 +193,12 @@ describe("WendewareLiveIngestService (fetch mocked, real DB)", () => {
     const result = await liveIngest.pull(tenant.id, connector.id);
 
     expect(result.emsCount).toBe(1);
-    expect(result.sensorCount).toBe(2);
-    expect(result.mapResult.discovered.map((d) => d.vendorObjectId).sort()).toEqual(["device-1", "device-2"]);
+    expect(result.sensorCount).toBe(3);
+    expect(result.mapResult.discovered.map((d) => d.vendorObjectId).sort()).toEqual([
+      "device-1",
+      "device-2",
+      "device-3",
+    ]);
     expect(result.mapResult.measurementsIngested).toBe(0);
   });
 
@@ -254,5 +293,63 @@ describe("WendewareLiveIngestService (fetch mocked, real DB)", () => {
       .where("asset_id", "=", battery.id)
       .executeTakeFirst();
     expect(socRow?.value).toBe(55.3);
+  });
+
+  it("ingests a wallbox_meter_demand sensor as a MeasurementPoint (Ladeinfrastruktur), not an Asset", async () => {
+    const { tenant, site } = await createTenantWithSite(db);
+    const chargingPoint = await measurementPoints.insert({
+      tenantId: tenant.id,
+      siteId: site.id,
+      name: "LP-AC-01",
+    });
+    const connector = await connectors.insert({
+      tenantId: tenant.id,
+      vendorType: "WENDEWARE",
+      name: "Live Connector",
+      secretReference: `env:${CLIENT_ID_VAR},env:${CLIENT_SECRET_VAR}`,
+      siteId: site.id,
+    });
+
+    const lpDiscovered = await objectMappings.discover({
+      tenantId: tenant.id,
+      connectorId: connector.id,
+      vendorObjectId: "device-3",
+    });
+    const lpMapped = await objectMappings.mapToMeasurementPoint({
+      tenantId: tenant.id,
+      id: lpDiscovered.id,
+      targetMeasurementPointId: chargingPoint.id,
+      mappingStatus: "MANUAL_MAPPED",
+    });
+    const consumptionTotal = await metricDefinitions.findByKey("energy_consumption_total");
+    const consumptionPower = await metricDefinitions.findByKey("active_power_consumption");
+    await metricMappings.insert({
+      tenantId: tenant.id,
+      vendorObjectMappingId: lpMapped.id,
+      vendorSensorId: encodeVendorSensorId("sensor-lp", "energy_mm_counter_seqs"),
+      metricDefinitionId: consumptionTotal!.id,
+      unitFactor: 0.001,
+    });
+    await metricMappings.insert({
+      tenantId: tenant.id,
+      vendorObjectMappingId: lpMapped.id,
+      vendorSensorId: encodeVendorSensorId("sensor-lp", "power_mm_counter_seqs"),
+      metricDefinitionId: consumptionPower!.id,
+      unitFactor: 0.001,
+    });
+
+    const result = await liveIngest.pull(tenant.id, connector.id);
+
+    expect(result.mapResult.measurementsIngested).toBe(2);
+
+    const lpRows = await db
+      .selectFrom("measurements")
+      .selectAll()
+      .where("tenant_id", "=", tenant.id)
+      .where("measurement_point_id", "=", chargingPoint.id)
+      .execute();
+    expect(lpRows).toHaveLength(2);
+    const values = lpRows.map((r) => r.value).sort((a, b) => a - b);
+    expect(values).toEqual([3, 5000]);
   });
 });

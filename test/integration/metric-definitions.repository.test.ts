@@ -18,6 +18,7 @@ const SLICE_KEYS = [
   "energy_consumption_total",
   "energy_charge_total",
   "energy_discharge_total",
+  "active_power_consumption",
 ];
 
 describe("metric definition registry (seeded, global — not truncated between tests)", () => {
