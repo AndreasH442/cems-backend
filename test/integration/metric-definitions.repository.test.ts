@@ -25,6 +25,7 @@ const SLICE_KEYS = [
   "dc_current",
   "dc_power",
   "reactive_power",
+  "grid_energy_price",
 ];
 
 describe("metric definition registry (seeded, global — not truncated between tests)", () => {

@@ -40,10 +40,11 @@ export const CONFIRMED_COUNTER_SENSOR_TYPE_IDS = [
 ] as const;
 
 /**
- * All confirmed gauge-like sensor_type categories with a seeded canonical metric
- * (docs/data-requirements.md) — every one of the 11 confirmed real categories except the two
- * still-unconfirmed grid_processed_price_* ones (economic data, out of scope: CEMS manages price
- * truth itself, docs/data-requirements.md "Aktualisierte Wendeware-Eignung").
+ * All confirmed gauge-like sensor_type categories with a seeded canonical metric and real,
+ * non-empty data (docs/data-requirements.md) — 11 device categories plus the one price category
+ * that actually returns values for the real pilot EMS. `grid_processed_price_unknowncurrency`
+ * exists but returned zero data points over a 48h real window (01.09.2026) — deliberately left
+ * out until it's ever observed to carry data; mapping an empty sensor would be guessing.
  */
 export const CONFIRMED_GAUGE_SENSOR_TYPE_IDS = [
   "battery_soc",
@@ -57,6 +58,7 @@ export const CONFIRMED_GAUGE_SENSOR_TYPE_IDS = [
   "battery_min_temperature",
   "battery_reactive_power",
   "pv_reactive_power",
+  "grid_processed_price_eurocent",
 ] as const;
 
 export interface WendewareLiveIngestResult {

@@ -78,7 +78,12 @@ function mockFetch(url: string | URL | Request): Promise<Response> {
     return Promise.resolve(
       jsonResponse({
         data: {
-          attributes: { datetimes: ["2026-09-01T10:00:00Z"], "sensor-soc": [55.3], "sensor-dcv": [742.5] },
+          attributes: {
+            datetimes: ["2026-09-01T10:00:00Z"],
+            "sensor-soc": [55.3],
+            "sensor-dcv": [742.5],
+            "sensor-price": [6.18],
+          },
         },
       }),
     );
@@ -134,6 +139,23 @@ function mockFetch(url: string | URL | Request): Promise<Response> {
             type: "sensors",
             attributes: { label: "LP-AC-01", unit: "Wh" },
             relationships: { device: { data: { id: "device-3", type: "devices" } } },
+          },
+        ],
+      }),
+    );
+  }
+  if (
+    href.includes("/sensors") &&
+    href.includes("filter%5Bsensor_type%5D%5Btype_id%5D=grid_processed_price_eurocent")
+  ) {
+    return Promise.resolve(
+      jsonResponse({
+        data: [
+          {
+            id: "sensor-price",
+            type: "sensors",
+            attributes: { label: "Grid", unit: "€-ct" },
+            relationships: { device: { data: { id: "device-4", type: "devices" } } },
           },
         ],
       }),
@@ -198,7 +220,7 @@ describe("WendewareLiveIngestService (fetch mocked, real DB)", () => {
     await stopTestDb();
   });
 
-  it("discovers all three devices as DISCOVERED on first pull (no mapping yet)", async () => {
+  it("discovers all four devices as DISCOVERED on first pull (no mapping yet)", async () => {
     const { tenant, site } = await createTenantWithSite(db);
     const connector = await connectors.insert({
       tenantId: tenant.id,
@@ -211,11 +233,12 @@ describe("WendewareLiveIngestService (fetch mocked, real DB)", () => {
     const result = await liveIngest.pull(tenant.id, connector.id);
 
     expect(result.emsCount).toBe(1);
-    expect(result.sensorCount).toBe(4);
+    expect(result.sensorCount).toBe(5);
     expect(result.mapResult.discovered.map((d) => d.vendorObjectId).sort()).toEqual([
       "device-1",
       "device-2",
       "device-3",
+      "device-4",
     ]);
     expect(result.mapResult.measurementsIngested).toBe(0);
   });
@@ -378,5 +401,54 @@ describe("WendewareLiveIngestService (fetch mocked, real DB)", () => {
     expect(lpRows).toHaveLength(2);
     const values = lpRows.map((r) => r.value).sort((a, b) => a - b);
     expect(values).toEqual([3, 5000]);
+  });
+
+  it("ingests grid_processed_price_eurocent as grid_energy_price, converted €-ct to EUR/kWh", async () => {
+    const { tenant, site } = await createTenantWithSite(db);
+    const gridConnection = await assets.insert({
+      tenantId: tenant.id,
+      siteId: site.id,
+      assetType: "GRID_CONNECTION",
+      name: "Netzanschluss",
+    });
+    const connector = await connectors.insert({
+      tenantId: tenant.id,
+      vendorType: "WENDEWARE",
+      name: "Live Connector",
+      secretReference: `env:${CLIENT_ID_VAR},env:${CLIENT_SECRET_VAR}`,
+      siteId: site.id,
+    });
+
+    const priceDiscovered = await objectMappings.discover({
+      tenantId: tenant.id,
+      connectorId: connector.id,
+      vendorObjectId: "device-4",
+    });
+    const priceMapped = await objectMappings.mapToAsset({
+      tenantId: tenant.id,
+      id: priceDiscovered.id,
+      targetAssetId: gridConnection.id,
+      mappingStatus: "MANUAL_MAPPED",
+    });
+    const gridEnergyPrice = await metricDefinitions.findByKey("grid_energy_price");
+    await metricMappings.insert({
+      tenantId: tenant.id,
+      vendorObjectMappingId: priceMapped.id,
+      vendorSensorId: encodeVendorSensorId("sensor-price", "avg_mm_gauge_seqs"),
+      metricDefinitionId: gridEnergyPrice!.id,
+      unitFactor: 0.01,
+    });
+
+    const result = await liveIngest.pull(tenant.id, connector.id);
+
+    expect(result.mapResult.measurementsIngested).toBe(1);
+
+    const priceRow = await db
+      .selectFrom("measurements")
+      .selectAll()
+      .where("tenant_id", "=", tenant.id)
+      .where("asset_id", "=", gridConnection.id)
+      .executeTakeFirst();
+    expect(priceRow?.value).toBeCloseTo(0.0618);
   });
 });
