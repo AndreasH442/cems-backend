@@ -76,7 +76,11 @@ function mockFetch(url: string | URL | Request): Promise<Response> {
   }
   if (href.includes("/sensors/measurements/seqs/avg_mm_gauge_seqs")) {
     return Promise.resolve(
-      jsonResponse({ data: { attributes: { datetimes: ["2026-09-01T10:00:00Z"], "sensor-soc": [55.3] } } }),
+      jsonResponse({
+        data: {
+          attributes: { datetimes: ["2026-09-01T10:00:00Z"], "sensor-soc": [55.3], "sensor-dcv": [742.5] },
+        },
+      }),
     );
   }
   if (href.includes("/sensors") && href.includes("filter%5Bsensor_type%5D%5Btype_id%5D=pv_meter_supply")) {
@@ -88,6 +92,20 @@ function mockFetch(url: string | URL | Request): Promise<Response> {
             type: "sensors",
             attributes: { label: "PV-WR 1", unit: "Wh" },
             relationships: { device: { data: { id: "device-1", type: "devices" } } },
+          },
+        ],
+      }),
+    );
+  }
+  if (href.includes("/sensors") && href.includes("filter%5Bsensor_type%5D%5Btype_id%5D=battery_dc_voltage")) {
+    return Promise.resolve(
+      jsonResponse({
+        data: [
+          {
+            id: "sensor-dcv",
+            type: "sensors",
+            attributes: { label: "DC Voltage", unit: "V" },
+            relationships: { device: { data: { id: "device-2", type: "devices" } } },
           },
         ],
       }),
@@ -193,7 +211,7 @@ describe("WendewareLiveIngestService (fetch mocked, real DB)", () => {
     const result = await liveIngest.pull(tenant.id, connector.id);
 
     expect(result.emsCount).toBe(1);
-    expect(result.sensorCount).toBe(3);
+    expect(result.sensorCount).toBe(4);
     expect(result.mapResult.discovered.map((d) => d.vendorObjectId).sort()).toEqual([
       "device-1",
       "device-2",
@@ -270,10 +288,17 @@ describe("WendewareLiveIngestService (fetch mocked, real DB)", () => {
       vendorSensorId: encodeVendorSensorId("sensor-soc", "avg_mm_gauge_seqs"),
       metricDefinitionId: soc!.id,
     });
+    const dcVoltage = await metricDefinitions.findByKey("dc_voltage");
+    await metricMappings.insert({
+      tenantId: tenant.id,
+      vendorObjectMappingId: socMapped.id,
+      vendorSensorId: encodeVendorSensorId("sensor-dcv", "avg_mm_gauge_seqs"),
+      metricDefinitionId: dcVoltage!.id,
+    });
 
     const result = await liveIngest.pull(tenant.id, connector.id);
 
-    expect(result.mapResult.measurementsIngested).toBe(3);
+    expect(result.mapResult.measurementsIngested).toBe(4);
 
     const pvRows = await db
       .selectFrom("measurements")
@@ -286,13 +311,15 @@ describe("WendewareLiveIngestService (fetch mocked, real DB)", () => {
     expect(values[0]).toBeCloseTo(15.61958);
     expect(values[1]).toBe(31800);
 
-    const socRow = await db
+    const batteryRows = await db
       .selectFrom("measurements")
       .selectAll()
       .where("tenant_id", "=", tenant.id)
       .where("asset_id", "=", battery.id)
-      .executeTakeFirst();
-    expect(socRow?.value).toBe(55.3);
+      .execute();
+    expect(batteryRows).toHaveLength(2);
+    const batteryValues = batteryRows.map((r) => r.value).sort((a, b) => a - b);
+    expect(batteryValues).toEqual([55.3, 742.5]);
   });
 
   it("ingests a wallbox_meter_demand sensor as a MeasurementPoint (Ladeinfrastruktur), not an Asset", async () => {

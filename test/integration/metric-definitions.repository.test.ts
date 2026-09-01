@@ -19,6 +19,12 @@ const SLICE_KEYS = [
   "energy_charge_total",
   "energy_discharge_total",
   "active_power_consumption",
+  "state_of_health",
+  "temperature_min",
+  "dc_voltage",
+  "dc_current",
+  "dc_power",
+  "reactive_power",
 ];
 
 describe("metric definition registry (seeded, global — not truncated between tests)", () => {

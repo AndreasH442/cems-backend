@@ -40,12 +40,24 @@ export const CONFIRMED_COUNTER_SENSOR_TYPE_IDS = [
 ] as const;
 
 /**
- * Confirmed gauge-like categories actually needed for this slice's canonical metrics
- * (state_of_charge, active_power_setpoint, temperature_max — all already seeded, migration 006).
- * More gauge categories were found (docs/data-requirements.md) but aren't pulled yet because
- * their canonical metrics aren't seeded.
+ * All confirmed gauge-like sensor_type categories with a seeded canonical metric
+ * (docs/data-requirements.md) — every one of the 11 confirmed real categories except the two
+ * still-unconfirmed grid_processed_price_* ones (economic data, out of scope: CEMS manages price
+ * truth itself, docs/data-requirements.md "Aktualisierte Wendeware-Eignung").
  */
-export const CONFIRMED_GAUGE_SENSOR_TYPE_IDS = ["battery_soc", "battery_setpoint_power", "pv_setpoint_power"] as const;
+export const CONFIRMED_GAUGE_SENSOR_TYPE_IDS = [
+  "battery_soc",
+  "battery_setpoint_power",
+  "pv_setpoint_power",
+  "battery_soh",
+  "battery_dc_voltage",
+  "battery_dc_current",
+  "battery_dc_power",
+  "battery_max_temperature",
+  "battery_min_temperature",
+  "battery_reactive_power",
+  "pv_reactive_power",
+] as const;
 
 export interface WendewareLiveIngestResult {
   readonly emsCount: number;
