@@ -21,9 +21,12 @@ export interface WendewareLiveIngestDeps {
  * The `.../seqs/energy_mm_counter_seqs` endpoint only accepts a batch of sensors that are all
  * "counter-like" (cumulative meters) — mixing in "gauge-like" sensors (SoC, voltage, power, ...)
  * in the same request is rejected with HTTP 400 ("Sensor(s) ... mismatch", confirmed against the
- * real API 01.09.2026). These five `sensor_type.typeId` values are the confirmed counter-like
- * categories (docs/data-requirements.md) — MVP scope is limited to them; a gauge-series endpoint
- * exists per the error message but its exact path is not yet confirmed.
+ * real API 01.09.2026). These `sensor_type.typeId` values are the confirmed counter-like
+ * categories (docs/data-requirements.md) — MVP scope is limited to them.
+ *
+ * A confirmed gauge-series endpoint (`avg_mm_gauge_seqs`, e.g. for `battery_soc`) also exists —
+ * see docs/data-requirements.md — but ingesting gauge sensors isn't wired up yet; this MVP only
+ * pulls counter-like (cumulative meter) sensors.
  */
 export const CONFIRMED_COUNTER_SENSOR_TYPE_IDS = [
   "pv_meter_supply",
@@ -31,6 +34,8 @@ export const CONFIRMED_COUNTER_SENSOR_TYPE_IDS = [
   "grid_meter_demand",
   "user_meter_demand",
   "wallbox_meter_demand",
+  "battery_meter_supply",
+  "battery_meter_demand",
 ] as const;
 
 export interface WendewareLiveIngestResult {
