@@ -17,7 +17,11 @@
     "migrate:down": "tsx src/infrastructure/db/migrate.ts down",
     "test:unit": "vitest run test/unit",
     "test:integration": "vitest run test/integration",
-    "test": "npm run test:unit && npm run test:integration"
+    "test": "npm run test:unit && npm run test:integration",
+    "db:up": "docker compose up -d",
+    "db:down": "docker compose down",
+    "db:logs": "docker compose logs -f db",
+    "demo": "tsx scripts/demo.ts"
   },
   "dependencies": {
     "kysely": "^0.29.5",

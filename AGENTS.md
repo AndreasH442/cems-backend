@@ -21,6 +21,13 @@ TypeScript/Node.js, `pg` + Kysely (nur in `infrastructure/repositories`, kein OR
 - `npm test` – beides nacheinander
 - `DATABASE_URL=postgres://... npm run migrate:up` / `migrate:down [steps]` – Migrationen gegen eine echte Postgres/TimescaleDB-Instanz anwenden/zurückrollen (jede `.up.sql` hat eine passende `.down.sql`, siehe `src/infrastructure/db/migrations/`)
 
+## Lokal ausprobieren (persistente Dev-DB, kein Testcontainer)
+
+1. `npm run db:up` – startet eine dauerhafte TimescaleDB via docker-compose auf Port 5432 (`.env.example` zeigt die passende `DATABASE_URL`)
+2. `npm run demo` – wendet alle Migrationen an, spielt dann die volle Story einmal durch (Wendeware-Fixture → Mapping → Measurement; danach ein Setpoint-nicht-gefolgt-Szenario → Anomaly → Case → Action → Verification SUCCESS) und gibt jeden Schritt lesbar auf der Konsole aus
+3. Danach mit einem beliebigen SQL-Client gegen `DATABASE_URL` selbst nachschauen (z. B. `psql`) – jeder `demo`-Lauf legt einen neuen, zeitstempel-benannten Tenant an, nichts wird zurückgesetzt
+4. `npm run db:down` – Container stoppen (Daten bleiben im Docker-Volume erhalten, bis es explizit gelöscht wird)
+
 ## Migration rules
 
 - Migrationen sind streng versioniert und folgen der Tabellen-Reihenfolge in docs/data-model.md.
