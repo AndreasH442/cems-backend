@@ -80,4 +80,4 @@ Case 1:n Verification
 - `control_intents`: punktuelle Zeitreihe wie measurements (ADR-007), Subject Asset XOR Component, Hypertable auf `timestamp`.
 - Deduplication/Idempotenz für beide Hypertables: natürlicher Schlüssel ohne Value — `(tenant_id, connector_id, vendor_object_id, vendor_sensor_id, timestamp)` — mit Upsert/Last-Write-Wins, nicht ein wert-einschließender Hash.
 - Kumulative Zählerstände (`*_total`) werden nicht wie Intervallenergie aufsummiert; Intervallenergie wird als Differenz zweier gültiger Zählerstände berechnet (siehe docs/canonical-metrics.md).
-- Chunk-Größe, Compression- und Continuous-Aggregate-Konfiguration werden bewusst erst nach Lasttests festgelegt, nicht im ersten Slice.
+- Compression ist aktiv (ADR-011): Chunks werden 30 Tage nach ihrem Zeitfenster komprimiert, nie gelöscht (mehrjährige Historie für den Digital Auditor). Chunk-Größe und Continuous-Aggregate-Konfiguration bleiben bewusst offen, erst nach Lasttests festzulegen.
