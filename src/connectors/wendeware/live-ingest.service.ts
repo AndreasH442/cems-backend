@@ -17,11 +17,29 @@ export interface WendewareLiveIngestDeps {
   readonly mapper: WendewareMapper;
 }
 
+/**
+ * The `.../seqs/energy_mm_counter_seqs` endpoint only accepts a batch of sensors that are all
+ * "counter-like" (cumulative meters) — mixing in "gauge-like" sensors (SoC, voltage, power, ...)
+ * in the same request is rejected with HTTP 400 ("Sensor(s) ... mismatch", confirmed against the
+ * real API 01.09.2026). These five `sensor_type.typeId` values are the confirmed counter-like
+ * categories (docs/data-requirements.md) — MVP scope is limited to them; a gauge-series endpoint
+ * exists per the error message but its exact path is not yet confirmed.
+ */
+export const CONFIRMED_COUNTER_SENSOR_TYPE_IDS = [
+  "pv_meter_supply",
+  "grid_meter_supply",
+  "grid_meter_demand",
+  "user_meter_demand",
+  "wallbox_meter_demand",
+] as const;
+
 export interface WendewareLiveIngestResult {
   readonly emsCount: number;
   readonly sensorCount: number;
   readonly readingCount: number;
   readonly mapResult: MapFixtureResult;
+  /** Sensor metadata (label/unit) grouped by device id — helps a human decide how to map a discovered device. */
+  readonly sensorsByDevice: ReadonlyMap<string, readonly WendewareSensorMetadata[]>;
 }
 
 /**
@@ -51,16 +69,20 @@ export class WendewareLiveIngestService {
     const emsList = await listEnergyManagementSystems(token);
 
     const sensorsByDevice = new Map<string, WendewareSensorMetadata[]>();
+    const seenSensorIds = new Set<string>();
     let sensorCount = 0;
     for (const ems of emsList) {
-      const sensors = await listSensors(token, ems.id);
-      for (const sensor of sensors) {
-        // No related device in the response -> can't attribute this sensor to a vendor object.
-        if (!sensor.deviceId) continue;
-        const forDevice = sensorsByDevice.get(sensor.deviceId) ?? [];
-        forDevice.push(sensor);
-        sensorsByDevice.set(sensor.deviceId, forDevice);
-        sensorCount += 1;
+      for (const sensorTypeId of CONFIRMED_COUNTER_SENSOR_TYPE_IDS) {
+        const sensors = await listSensors(token, ems.id, undefined, sensorTypeId);
+        for (const sensor of sensors) {
+          // No related device in the response -> can't attribute this sensor to a vendor object.
+          if (!sensor.deviceId || seenSensorIds.has(sensor.sensorId)) continue;
+          seenSensorIds.add(sensor.sensorId);
+          const forDevice = sensorsByDevice.get(sensor.deviceId) ?? [];
+          forDevice.push(sensor);
+          sensorsByDevice.set(sensor.deviceId, forDevice);
+          sensorCount += 1;
+        }
       }
     }
 
@@ -85,6 +107,6 @@ export class WendewareLiveIngestService {
     const fixture: WendewareFixture = { objects };
     const mapResult = await this.deps.mapper.mapAndIngest(tenantId, connectorId, fixture);
 
-    return { emsCount: emsList.length, sensorCount, readingCount: readings.length, mapResult };
+    return { emsCount: emsList.length, sensorCount, readingCount: readings.length, mapResult, sensorsByDevice };
   }
 }

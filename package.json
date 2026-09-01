@@ -21,7 +21,9 @@
     "db:up": "docker compose up -d",
     "db:down": "docker compose down",
     "db:logs": "docker compose logs -f db",
-    "demo": "tsx scripts/demo.ts"
+    "demo": "tsx scripts/demo.ts",
+    "live:setup-customer": "tsx scripts/live-setup-customer.ts",
+    "live:pull": "tsx scripts/live-pull.ts"
   },
   "dependencies": {
     "kysely": "^0.29.5",
@@ -32,6 +34,7 @@
     "@testcontainers/postgresql": "^12.1.0",
     "@types/node": "^22.10.2",
     "@types/pg": "^8.11.10",
+    "dotenv": "^17.4.2",
     "eslint": "^10.9.1",
     "eslint-config-prettier": "^10.1.8",
     "prettier": "^3.9.6",

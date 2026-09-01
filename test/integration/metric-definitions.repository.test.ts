@@ -12,6 +12,10 @@ const SLICE_KEYS = [
   "active_power_generation",
   "expected_active_power",
   "device_temperature",
+  "energy_generation_total",
+  "energy_export_total",
+  "energy_import_total",
+  "energy_consumption_total",
 ];
 
 describe("metric definition registry (seeded, global — not truncated between tests)", () => {

@@ -56,7 +56,8 @@ async function apiGet(
     headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.api+json" },
   });
   if (!resp.ok) {
-    throw new Error(`Wendeware API request to ${path} failed: HTTP ${resp.status}`);
+    const body = await resp.text().catch(() => "");
+    throw new Error(`Wendeware API request to ${path} failed: HTTP ${resp.status} — ${body.slice(0, 1000)}`);
   }
   return (await resp.json()) as JsonApiCollection;
 }
@@ -89,10 +90,13 @@ export async function listSensors(
   token: string,
   emsId: string,
   apiBase = DEFAULT_API_BASE,
+  /** Optional `sensor_type.typeId` filter — see CONFIRMED_COUNTER_SENSOR_TYPE_IDS in live-ingest.service.ts. */
+  sensorTypeId?: string,
 ): Promise<WendewareSensorMetadata[]> {
   const payload = await apiGet(token, apiBase, "/sensors", {
     "filter[ems_ids]": emsId,
     "filter[kind]": "16",
+    ...(sensorTypeId ? { "filter[sensor_type][type_id]": sensorTypeId } : {}),
   });
   return (payload.data ?? []).map((item) => ({
     sensorId: item.id,
