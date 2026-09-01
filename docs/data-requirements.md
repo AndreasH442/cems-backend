@@ -1,4 +1,4 @@
-# CEMS Data Requirements – Wendeware/AMPERIX (Stand 30.08.2026)
+# CEMS Data Requirements – Wendeware/AMPERIX (Stand 01.09.2026)
 
 Reale, an einem Projekt verifizierte Datenverfügbarkeit. Nur das hier Dokumentierte darf als gesicherte Wendeware-Semantik gelten – alles andere ist Annahme und muss vor Nutzung bestätigt werden.
 
@@ -34,6 +34,25 @@ Vorläufige, NICHT automatisch anzuwendende Rollen-Zuordnung (nur als Hinweis f�
 | ec.*             | Energy Cost       | Economic Data Source              |
 | pv.* / pvp.*     | PV-Unterobjekt    | zunächst VENDOR_COMPONENT         |
 | prc.*            | Prozess/generisch | zunächst unmapped                 |
+
+## myPowerGrid Customer-API – bestätigte Zugriffsmechanik (Stand 01.09.2026)
+
+Gegen einen echten Kundenzugang verifiziert (OAuth2-Client mit Scope `email`). Die konkrete Client-ID sowie alle Kunden-/Anlagendaten aus diesem Test sind bewusst nicht Teil dieses Dokuments (siehe "Datenschutz" unten) – hier nur die vendor-neutrale API-Mechanik, die für den Connector-Code relevant ist.
+
+**Auth:** OAuth2 Client-Credentials-Flow gegen Keycloak.
+`POST https://auth.mypowergrid.de/realms/wendeware/protocol/openid-connect/token` mit `grant_type=client_credentials`, `client_id`, `client_secret`, `scope=email`. Token-Lebensdauer kurz (Größenordnung 300 s) – pro Lauf/Batch neu holen, nicht cachen über Prozessgrenzen hinweg ohne Ablaufprüfung.
+
+**Basis-URL:** `https://www.mypowergrid.de/api/v1/customer` (JSON:API-artiges Antwortformat: `data`/`attributes`/`relationships`/`included`).
+
+**Endpunkte:**
+
+- `GET /energy_management_systems` – listet die EMS-Instanzen, auf die der Client Zugriff hat (`data[].id`, `data[].attributes.name`). Leere Liste bedeutet: authentifiziert, aber keinem EMS zugewiesen (Berechtigungsproblem, keine Datenfrage).
+- `GET /sensors?filter[ems_ids]=<emsId>&filter[kind]=16` – Sensor-Inventar für ein EMS. `kind=16` = "reference & virtual sensors" (die menschenlesbare/nutzbare Teilmenge). `included` enthält `sensor_types` (Feld `typeId`) und `devices` (Feld `deviceType`) als Lookup-Tabellen für die Sensor-Relationships. Antwort trägt `meta.hasPermissionRestriction` – `true` bedeutet, die Liste ist durch fehlende Rechte gefiltert, nicht vollständig.
+- `GET /sensors/measurements/seqs/energy_mm_counter_seqs` – Zeitreihen-Abruf für mehrere Sensoren gleichzeitig. Parameter: `filter[sensorIds]` (kommasepariert), `filter[tFilter][dateFrom]`/`filter[tFilter][dateTo]` (ISO-Zeitraum), `filter[resolution]` (bestätigt u. a. `"1 minute"`, `"15 minutes"`, `"2 days"`, `"1 month"`), `filter[tz]` (IANA-Zeitzone, z. B. `Europe/Berlin`). Antwortform: `data.attributes.datetimes: string[]` plus je Sensor-ID ein paralleles `data.attributes.<sensorId>: number[]` (Index-Korrespondenz zu `datetimes`, keine Objekt-Liste pro Zeitpunkt).
+
+**Bestätigte `sensor_type.typeId`-Werte** (vendor-eigene Kategorisierung, unabhängig von den Präfixen oben – vermutlich eine andere/höhere API-Schicht desselben Produkts, Verhältnis zu den `bat.*`/`inv.*`-Präfixen noch nicht geklärt): `pv_meter_supply`, `grid_meter_supply`, `grid_meter_demand`, `user_meter_demand`, `wallbox_meter_demand`.
+
+**Idempotenz-Empfehlung aus dem Test:** Zeitreihen-Pull mit Sicherheitsfenster (einige Stunden vor dem zuletzt gespeicherten Zeitstempel erneut abfragen, da die API verzögert eintreffende Werte nachliefert) plus `INSERT OR IGNORE`/Upsert auf dem natürlichen Schlüssel – deckt sich mit der bereits dokumentierten Dedup-Strategie für `measurements`/`control_intents` in docs/data-model.md.
 
 ## Aktualisierte Wendeware-Eignung
 

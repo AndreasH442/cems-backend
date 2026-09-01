@@ -10,7 +10,9 @@ Architektur-Review abgeschlossen. Domain Model, Canonical Model, PostgreSQL/Time
 
 **Zweiter Slice (Component/MeasurementPoint) ebenfalls umgesetzt:** die in `docs/domain-model.md` schon immer spezifizierten, im ersten Slice bewusst ausgelassenen Entities Component, MeasurementPoint, AssetMeasurementPoint, MeasurementPointMeter – inklusive Erweiterung von Measurement/ControlIntent/AssetState/Event/VendorObjectMapping auf die vollen XOR-Subject-Varianten (z. B. Measurement jetzt gegen Asset, Component oder MeasurementPoint wie LP-AC-01…15).
 
-Insgesamt 32 Migrationen (`src/infrastructure/db/migrations/`, Up/Down verifiziert), 59 Tests grün (`npm run test:unit`, `npm run test:integration`) – siehe AGENTS.md für die Kommandos. Weiterhin **kein Frontend, keine HTTP-API-Schicht, kein Auth-System, keine RLS-Policies** (siehe "Nicht bauen" in docs/first-vertical-slice.md).
+**Echter Wendeware Live-Connector (MVP) ebenfalls vorhanden:** `src/connectors/wendeware/live-ingest.service.ts` zieht reale Werte über die jetzt bestätigte myPowerGrid-API (docs/data-requirements.md) und speist sie über den bereits getesteten, unverändert wiederverwendeten `WendewareMapper` ein – Discovery neuer Geräte inklusive. Läuft nie in CI (keine echten Credentials dort), nur manuell/optional mit eigenem Kundenzugang – siehe AGENTS.md.
+
+Insgesamt 32 Migrationen (`src/infrastructure/db/migrations/`, Up/Down verifiziert), 69 Tests grün (`npm run test:unit`, `npm run test:integration`) – siehe AGENTS.md für die Kommandos. Weiterhin **kein Frontend, keine HTTP-API-Schicht, kein Auth-System, keine RLS-Policies** (siehe "Nicht bauen" in docs/first-vertical-slice.md).
 
 **Selbst ausprobieren:** `npm run db:up && npm run demo` startet eine dauerhafte lokale TimescaleDB und spielt die komplette Story (Fixture → Mapping → Measurement → Anomaly → Case → Action → Verification) einmal lesbar auf der Konsole durch – siehe AGENTS.md, Abschnitt "Lokal ausprobieren".
 

@@ -28,6 +28,16 @@ TypeScript/Node.js, `pg` + Kysely (nur in `infrastructure/repositories`, kein OR
 3. Danach mit einem beliebigen SQL-Client gegen `DATABASE_URL` selbst nachschauen (z. B. `psql`) – jeder `demo`-Lauf legt einen neuen, zeitstempel-benannten Tenant an, nichts wird zurückgesetzt
 4. `npm run db:down` – Container stoppen (Daten bleiben im Docker-Volume erhalten, bis es explizit gelöscht wird)
 
+## Echter Wendeware Live-Connector (optional, manuell)
+
+`src/connectors/wendeware/live-ingest.service.ts` zieht echte Werte aus der myPowerGrid-API (Auth/Endpunkte: docs/data-requirements.md). Läuft nie in CI und braucht einen echten Kundenzugang:
+
+1. `MPG_CLIENT_ID`/`MPG_CLIENT_SECRET` lokal setzen (nie committen, siehe `.env.example`)
+2. Einen `connectors`-Datensatz mit `vendor_type=WENDEWARE` und `secret_reference="env:MPG_CLIENT_ID,env:MPG_CLIENT_SECRET"` anlegen
+3. `WendewareLiveIngestService.pull(tenantId, connectorId)` aufrufen (z. B. aus einem eigenen kleinen Skript analog `scripts/demo.ts`)
+
+Erstkontakt legt neue Geräte als `DISCOVERED` an (ADR-004) – erst nach manuellem Mapping auf Asset/Component/MeasurementPoint fließen echte Werte als `Measurement`/`ControlIntent`. MVP zieht pro Sensor nur den aktuellsten Wert in einem kurzen Rückblickfenster, kein historisches Backfill.
+
 ## Migration rules
 
 - Migrationen sind streng versioniert und folgen der Tabellen-Reihenfolge in docs/data-model.md.
