@@ -22,6 +22,9 @@ export interface SitesTable {
   tenant_id: string;
   organization_id: string;
   name: string;
+  latitude: number | null;
+  longitude: number | null;
+  configuration: Generated<unknown>;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
 }
@@ -33,6 +36,7 @@ export interface AssetsTable {
   parent_asset_id: string | null;
   asset_type: string;
   name: string;
+  configuration: Generated<unknown>;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
 }

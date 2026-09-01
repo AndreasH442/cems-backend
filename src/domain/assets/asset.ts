@@ -25,6 +25,8 @@ export interface Asset {
   readonly parentAssetId: AssetId | null;
   readonly assetType: AssetType;
   readonly name: string;
+  /** Generic asset-type-specific master-data container (ADR-012), e.g. PV plant parameters. */
+  readonly configuration: Record<string, unknown>;
   readonly createdAt: Date;
   readonly updatedAt: Date;
 }

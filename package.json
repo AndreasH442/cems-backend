@@ -25,7 +25,8 @@
     "live:setup-customer": "tsx scripts/live-setup-customer.ts",
     "live:pull": "tsx scripts/live-pull.ts",
     "live:run-auditor": "tsx scripts/live-run-auditor.ts",
-    "live:schedule": "tsx scripts/live-schedule.ts"
+    "live:schedule": "tsx scripts/live-schedule.ts",
+    "weather:pull": "tsx scripts/weather-pull.ts"
   },
   "dependencies": {
     "kysely": "^0.29.5",

@@ -6,13 +6,13 @@ Verbindliche Quelle für Domain-Objekte im ersten Vertical Slice. Nichts hier Au
 
 - **Tenant** – Mandant. status: ACTIVE/SUSPENDED/ARCHIVED.
 - **Organization** – Kunde/Unternehmen unter einem Tenant, optional hierarchisch (parent_organization_id, muss gleicher Tenant sein).
-- **Site** – Standort einer Organization.
+- **Site** – Standort einer Organization. Trägt Geokoordinaten (`latitude`/`longitude`, typisiert) sowie ein generisches `configuration`-Feld für weitere Standort-Stammdaten (ADR-012, digitaler-Zwilling-Fundament).
 
 **Regel (ADR-006):** Jede Tabelle mit `tenant_id` erhält eine zusammengesetzte FK `(tenant_id, x_id) → x(tenant_id, id)`, nicht nur eine einfache FK auf die ID. Ausnahme: die Hypertables `measurements`/`control_intents`.
 
 ## Digital Twin
 
-- **Asset** – technisch/wirtschaftlich relevantes Objekt mit eigenem Lebenszyklus (z. B. Batterie, PV-Wechselrichter, Ladesäule, Zähler, EMS). Kann hierarchisch sein (parent_asset_id, gleicher Tenant/Site, keine Zyklen). asset_type-Registry: siehe docs/canonical-metrics.md.
+- **Asset** – technisch/wirtschaftlich relevantes Objekt mit eigenem Lebenszyklus (z. B. Batterie, PV-Wechselrichter, Ladesäule, Zähler, EMS). Kann hierarchisch sein (parent_asset_id, gleicher Tenant/Site, keine Zyklen). asset_type-Registry: siehe docs/canonical-metrics.md. Trägt ein generisches `configuration`-Feld für asset-typ-spezifische Stammdaten (z. B. PV: kWp/AC-Leistung/Tilt/Azimuth; ADR-012).
 - **Component** – Unterobjekt eines Assets (z. B. MPP-Tracker, Ladeconnector, Battery Rack). Unbekannte Wendeware-Unterobjekte werden konservativ als `VENDOR_COMPONENT` geführt.
 - **MeasurementPoint** – fachlicher Mess-/Bilanzpunkt (z. B. Netzübergabe, Produktion, Ladepark), unabhängig vom physischen Messgerät. n:m zu Asset über `AssetMeasurementPoint` (zeitlich gültig, relation_type PRIMARY/INPUT/OUTPUT/AUXILIARY/AGGREGATE).
 - **MeasurementPointMeter** – zeitlich gültige Zuordnung eines physischen Zähler-Assets zu einem MeasurementPoint. Bewusst getrennt von AssetMeasurementPoint (Entscheidung 30.08.2026), weil hier eine striktere Regel gilt (genau ein Asset vom Typ METER, perspektivisch Exklusivitäts-Constraint).
@@ -29,7 +29,7 @@ Wichtig: Asset, Component und MeasurementPoint sind drei unterschiedliche fachli
 - **ControlIntent** – Sollwert/Limit, eigene fachliche Datenart, keine Measurement-Quality. **Punktuelle Zeitreihe wie Measurement** (Entscheidung 30.08.2026, kein Intervall-Objekt mit valid_from/valid_until). Subject: Asset XOR Component (kein MeasurementPoint, da nicht steuerbar).
 - **AssetState** – Zustand (AVAILABILITY/OPERATION/COMMUNICATION/HEALTH), zeitlich gültig (valid_from/valid_until). Subject: Asset XOR Component.
 - **Event** – punktuelles/abgegrenztes Ereignis (z. B. DEVICE_FAULT, COMMUNICATION_LOSS, STRATEGY_CHANGED). Event ist NICHT gleich Case.
-- **Forecast** – im ersten Slice nicht implementiert. Künftig strategiebasiert (aus EMS-/Betriebsstrategien abgeleitet), nicht wetterbasiert. "Erwartete Werte" werden im MVP als Measurement mit quality = CALCULATED behandelt.
+- **Forecast** – kein eigenes Domain-Objekt (Entscheidung 30.08.2026, bestätigt ADR-012). "Erwartete Werte" werden als Measurement mit quality = CALCULATED behandelt, auch wetterbasiert (ADR-012, Revision der ursprünglichen "nicht wetterbasiert"-Einschränkung).
 
 ## Digital Auditor / Operations-Kette
 

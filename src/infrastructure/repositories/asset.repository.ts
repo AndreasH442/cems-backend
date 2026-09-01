@@ -12,6 +12,7 @@ function toDomain(row: Selectable<AssetsTable>): Asset {
     parentAssetId: (row.parent_asset_id as AssetId | null) ?? null,
     assetType: row.asset_type as AssetType,
     name: row.name,
+    configuration: row.configuration as Record<string, unknown>,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -23,6 +24,7 @@ export interface InsertAssetInput {
   assetType: AssetType;
   name: string;
   parentAssetId?: AssetId;
+  configuration?: Record<string, unknown>;
 }
 
 export class AssetRepository {
@@ -37,7 +39,20 @@ export class AssetRepository {
         asset_type: input.assetType,
         name: input.name,
         parent_asset_id: input.parentAssetId ?? null,
+        ...(input.configuration ? { configuration: JSON.stringify(input.configuration) } : {}),
       })
+      .returningAll()
+      .executeTakeFirstOrThrow();
+    return toDomain(row);
+  }
+
+  /** Master-data maintenance (ADR-012) — onboarding scripts today, a future management UI/API later. */
+  async updateConfiguration(tenantId: TenantId, id: AssetId, configuration: Record<string, unknown>): Promise<Asset> {
+    const row = await this.db
+      .updateTable("assets")
+      .set({ configuration: JSON.stringify(configuration), updated_at: new Date() })
+      .where("tenant_id", "=", tenantId)
+      .where("id", "=", id)
       .returningAll()
       .executeTakeFirstOrThrow();
     return toDomain(row);
@@ -51,5 +66,16 @@ export class AssetRepository {
       .where("id", "=", id)
       .executeTakeFirst();
     return row ? toDomain(row) : null;
+  }
+
+  async findByTypeAndSite(tenantId: TenantId, siteId: SiteId, assetType: AssetType): Promise<Asset[]> {
+    const rows = await this.db
+      .selectFrom("assets")
+      .selectAll()
+      .where("tenant_id", "=", tenantId)
+      .where("site_id", "=", siteId)
+      .where("asset_type", "=", assetType)
+      .execute();
+    return rows.map(toDomain);
   }
 }

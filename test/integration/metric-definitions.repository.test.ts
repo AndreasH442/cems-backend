@@ -26,6 +26,10 @@ const SLICE_KEYS = [
   "dc_power",
   "reactive_power",
   "grid_energy_price",
+  "irradiance",
+  "ambient_temperature",
+  "wind_speed",
+  "cloud_cover",
 ];
 
 describe("metric definition registry (seeded, global — not truncated between tests)", () => {
