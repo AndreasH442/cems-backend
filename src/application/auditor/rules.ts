@@ -25,6 +25,22 @@ export function normalizeBatteryActualPower(chargeKw: number, dischargeKw: numbe
   return chargeKw - dischargeKw;
 }
 
+export const MIN_PLAUSIBLE_GENERATION_KW = 0.1;
+
+/**
+ * Guards PV_SETPOINT_VS_ACTUAL_V1 against a real observed EMS artifact (found 02.09.2026, real
+ * pilot, docs/data-requirements.md): overnight the vendor's active_power_setpoint holds a frozen
+ * idle/startup value (bit-identical across 15-min slots and across all inverters) instead of a
+ * live curtailment command, while actual generation is genuinely 0 kW (no sun) — comparing the
+ * two fires this rule every single night on every inverter, a systematic false positive, not an
+ * operational fault. Rather than guess at what the frozen vendor value means (ADR-004), gate the
+ * comparison on the already-existing weather-based `expected_active_power` (PV_SYSTEM level,
+ * ADR-012) — the one signal that actually tells us whether generation is physically possible.
+ */
+export function isGenerationPhysicallyPlausible(expectedActivePowerKw: number): boolean {
+  return expectedActivePowerKw > MIN_PLAUSIBLE_GENERATION_KW;
+}
+
 export interface SetpointReading {
   readonly value: number;
   readonly timestamp: Date;

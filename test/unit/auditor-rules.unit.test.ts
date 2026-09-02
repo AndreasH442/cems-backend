@@ -8,6 +8,8 @@ import {
   evaluateGridImportBufferUndershoot,
   evaluateMeasurementMissingWithHeartbeat,
   evaluateSetpointTracking,
+  isGenerationPhysicallyPlausible,
+  MIN_PLAUSIBLE_GENERATION_KW,
   normalizeBatteryActualPower,
   parseZeroExportConfiguration,
   SETPOINT_TOLERANCE_KW,
@@ -244,5 +246,17 @@ describe("evaluateGridExportLimitExceeded", () => {
     expect(result?.assetId).toBe(ASSET_ID);
     expect(result?.description).toContain("40.00 kWh");
     expect(result?.description).toContain("15.00 kWh");
+  });
+});
+
+describe("isGenerationPhysicallyPlausible", () => {
+  it("returns false at night (expected_active_power at or near 0)", () => {
+    expect(isGenerationPhysicallyPlausible(0)).toBe(false);
+    expect(isGenerationPhysicallyPlausible(MIN_PLAUSIBLE_GENERATION_KW)).toBe(false);
+  });
+
+  it("returns true once expected generation is meaningfully above the threshold", () => {
+    expect(isGenerationPhysicallyPlausible(MIN_PLAUSIBLE_GENERATION_KW + 0.01)).toBe(true);
+    expect(isGenerationPhysicallyPlausible(12)).toBe(true);
   });
 });

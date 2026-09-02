@@ -5,6 +5,7 @@ import {
   evaluateGridExportLimitExceeded,
   evaluateGridImportBufferUndershoot,
   evaluateSetpointTracking,
+  isGenerationPhysicallyPlausible,
   normalizeBatteryActualPower,
 } from "./rules.js";
 import { parseCurtailmentScopeConfiguration, type CurtailmentService } from "../curtailment/curtailment.service.js";
@@ -101,14 +102,29 @@ export const pvSetpointVsActualModule: AuditorRuleModule = {
   ruleKey: "PV_SETPOINT_VS_ACTUAL_V1",
   targetAssetTypes: ["PV_INVERTER"],
   async run(deps, tenantId, asset, ctx) {
-    const [setpointMetric, generationMetric] = await Promise.all([
+    // Can't tell whether generation is physically plausible without the parent PV_SYSTEM's
+    // weather-based expectation — skip rather than guess (see isGenerationPhysicallyPlausible).
+    if (!asset.parentAssetId) return null;
+
+    const [setpointMetric, generationMetric, expectedMetric] = await Promise.all([
       deps.metricDefinitions.findByKey("active_power_setpoint"),
       deps.metricDefinitions.findByKey("active_power_generation"),
+      deps.metricDefinitions.findByKey("expected_active_power"),
     ]);
     const setpoint = await deps.controlIntents.findLatestBefore(tenantId, asset.id, setpointMetric!.id, ctx.now);
     if (!setpoint) return null;
 
     const windowEnd = new Date(setpoint.timestamp.getTime() + GRACE_WINDOW_MS);
+
+    const expected = await deps.measurements.findEarliestInWindow(
+      tenantId,
+      asset.parentAssetId,
+      expectedMetric!.id,
+      setpoint.timestamp,
+      windowEnd,
+    );
+    if (!expected || !isGenerationPhysicallyPlausible(expected.value)) return null;
+
     const actual = await deps.measurements.findEarliestInWindow(
       tenantId,
       asset.id,

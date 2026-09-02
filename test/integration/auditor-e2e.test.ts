@@ -323,14 +323,28 @@ describe("Digital Auditor end-to-end (Anomaly -> Case -> Action -> Verification)
 
   it("E2E 5: PV_SETPOINT_VS_ACTUAL_V1 -> Anomaly + Case", async () => {
     const { tenant, site } = await createTenantWithSite(db);
+    const pvSystem = await assets.insert({ tenantId: tenant.id, siteId: site.id, assetType: "PV_SYSTEM", name: "PV" });
     const inverter = await assets.insert({
       tenantId: tenant.id,
       siteId: site.id,
       assetType: "PV_INVERTER",
       name: "PV-Wechselrichter",
+      parentAssetId: pvSystem.id,
     });
     const t0 = new Date("2026-08-30T11:00:00Z");
 
+    // Daylight is physically plausible (expected_active_power on the parent PV_SYSTEM), so the
+    // gate added after the real-pilot nighttime-floor false-positive finding (02.09.2026,
+    // isGenerationPhysicallyPlausible) does not suppress this scenario.
+    await measurementIngestion.ingest({
+      tenantId: tenant.id,
+      ...assetSubject(pvSystem.id),
+      measurementPointId: null,
+      metricKey: "expected_active_power",
+      timestamp: new Date(t0.getTime() + 5_000),
+      value: 12,
+      quality: "CALCULATED",
+    });
     // Curtailment setpoint of 10 kW, but the inverter keeps producing 15 kW.
     await controlIntentIngestion.ingest({
       tenantId: tenant.id,
@@ -355,6 +369,49 @@ describe("Digital Auditor end-to-end (Anomaly -> Case -> Action -> Verification)
 
     const kase = await caseBuilder.buildFromAnomalies(tenant.id, site.id, [anomaly!]);
     expect(kase.severity).toBe("MEDIUM");
+  });
+
+  it("E2E 5b: PV_SETPOINT_VS_ACTUAL_V1 does not fire at night (expected_active_power ~0) — real-pilot false-positive fix", async () => {
+    const { tenant, site } = await createTenantWithSite(db);
+    const pvSystem = await assets.insert({ tenantId: tenant.id, siteId: site.id, assetType: "PV_SYSTEM", name: "PV" });
+    const inverter = await assets.insert({
+      tenantId: tenant.id,
+      siteId: site.id,
+      assetType: "PV_INVERTER",
+      name: "PV-Wechselrichter",
+      parentAssetId: pvSystem.id,
+    });
+    const t0 = new Date("2026-08-30T23:00:00Z"); // night
+
+    // Vendor holds a frozen idle setpoint overnight (real observed value, docs/data-requirements.md).
+    await measurementIngestion.ingest({
+      tenantId: tenant.id,
+      ...assetSubject(pvSystem.id),
+      measurementPointId: null,
+      metricKey: "expected_active_power",
+      timestamp: new Date(t0.getTime() + 5_000),
+      value: 0,
+      quality: "CALCULATED",
+    });
+    await controlIntentIngestion.ingest({
+      tenantId: tenant.id,
+      ...assetSubject(inverter.id),
+      metricKey: "active_power_setpoint",
+      timestamp: t0,
+      value: 5.5,
+    });
+    await measurementIngestion.ingest({
+      tenantId: tenant.id,
+      ...assetSubject(inverter.id),
+      measurementPointId: null,
+      metricKey: "active_power_generation",
+      timestamp: new Date(t0.getTime() + 10_000),
+      value: 0,
+      quality: "MEASURED",
+    });
+
+    const anomaly = await runModule(pvSetpointVsActualModule, tenant.id, site.id, inverter);
+    expect(anomaly).toBeNull();
   });
 
   it("E2E 6: MEASUREMENT_MISSING_WITH_HEARTBEAT_V1 -> Anomaly nur mit Heartbeat", async () => {
