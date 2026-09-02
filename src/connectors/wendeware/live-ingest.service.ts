@@ -28,9 +28,11 @@ export interface WendewareLiveIngestDeps {
  * against the real API 01.09.2026). These `sensor_type.typeId` values are the confirmed
  * counter-like categories (docs/data-requirements.md).
  *
- * Each counter sensor is queried through two series types: `energy_mm_counter_seqs` (cumulative
- * total) and `power_mm_counter_seqs` (derived instantaneous power — confirmed to equal
- * `delta_per_time_mm_counter_seqs`, docs/data-requirements.md).
+ * Each counter sensor is queried through two series types: `interpolated_mm_counter_seqs` (the
+ * true cumulative counter — NOT `energy_mm_counter_seqs`, which is byte-identical to
+ * `delta_mm_counter_seqs`, i.e. interval energy per resolution bucket, confirmed 02.09.2026,
+ * docs/data-requirements.md "KORREKTUR") and `power_mm_counter_seqs` (derived instantaneous power
+ * — confirmed to equal `delta_per_time_mm_counter_seqs`, docs/data-requirements.md).
  */
 export const CONFIRMED_COUNTER_SENSOR_TYPE_IDS = [
   "pv_meter_supply",
@@ -157,7 +159,7 @@ export class WendewareLiveIngestService {
   private buildFixtureObjects(
     counterSensors: readonly DeviceSensor[],
     gaugeSensors: readonly DeviceSensor[],
-    energyBySensorId: ReadonlyMap<string, WendewareReading[]>,
+    counterBySensorId: ReadonlyMap<string, WendewareReading[]>,
     powerBySensorId: ReadonlyMap<string, WendewareReading[]>,
     gaugeBySensorId: ReadonlyMap<string, WendewareReading[]>,
   ): { objects: WendewareObjectPayload[]; sensorsByDevice: Map<string, WendewareSensorMetadata[]> } {
@@ -186,7 +188,7 @@ export class WendewareLiveIngestService {
 
     for (const { deviceId, sensor } of counterSensors) {
       record(deviceId, sensor);
-      addReadings(deviceId, "energy_mm_counter_seqs", sensor.sensorId, energyBySensorId.get(sensor.sensorId));
+      addReadings(deviceId, "interpolated_mm_counter_seqs", sensor.sensorId, counterBySensorId.get(sensor.sensorId));
       addReadings(deviceId, "power_mm_counter_seqs", sensor.sensorId, powerBySensorId.get(sensor.sensorId));
     }
     for (const { deviceId, sensor } of gaugeSensors) {
@@ -212,8 +214,8 @@ export class WendewareLiveIngestService {
     const counterSensorIds = counterSensors.map((s) => s.sensor.sensorId);
     const gaugeSensorIds = gaugeSensors.map((s) => s.sensor.sensorId);
 
-    const [energyReadings, powerReadings, gaugeReadings] = await Promise.all([
-      fetchLatestValues(token, "energy_mm_counter_seqs", counterSensorIds, this.lookbackMinutes),
+    const [counterReadings, powerReadings, gaugeReadings] = await Promise.all([
+      fetchLatestValues(token, "interpolated_mm_counter_seqs", counterSensorIds, this.lookbackMinutes),
       fetchLatestValues(token, "power_mm_counter_seqs", counterSensorIds, this.lookbackMinutes),
       fetchLatestValues(token, "avg_mm_gauge_seqs", gaugeSensorIds, this.lookbackMinutes),
     ]);
@@ -221,7 +223,7 @@ export class WendewareLiveIngestService {
     const { objects, sensorsByDevice } = this.buildFixtureObjects(
       counterSensors,
       gaugeSensors,
-      groupBySensorId(energyReadings),
+      groupBySensorId(counterReadings),
       groupBySensorId(powerReadings),
       groupBySensorId(gaugeReadings),
     );
@@ -232,7 +234,7 @@ export class WendewareLiveIngestService {
     return {
       emsCount: emsList.length,
       sensorCount: counterSensors.length + gaugeSensors.length,
-      readingCount: energyReadings.length + powerReadings.length + gaugeReadings.length,
+      readingCount: counterReadings.length + powerReadings.length + gaugeReadings.length,
       mapResult,
       sensorsByDevice,
     };
@@ -260,8 +262,8 @@ export class WendewareLiveIngestService {
     const counterSensorIds = counterSensors.map((s) => s.sensor.sensorId);
     const gaugeSensorIds = gaugeSensors.map((s) => s.sensor.sensorId);
 
-    const [energyReadings, powerReadings, gaugeReadings] = await Promise.all([
-      fetchSeriesValues(token, "energy_mm_counter_seqs", counterSensorIds, dateFrom, dateTo, resolution),
+    const [counterReadings, powerReadings, gaugeReadings] = await Promise.all([
+      fetchSeriesValues(token, "interpolated_mm_counter_seqs", counterSensorIds, dateFrom, dateTo, resolution),
       fetchSeriesValues(token, "power_mm_counter_seqs", counterSensorIds, dateFrom, dateTo, resolution),
       fetchSeriesValues(token, "avg_mm_gauge_seqs", gaugeSensorIds, dateFrom, dateTo, resolution),
     ]);
@@ -269,7 +271,7 @@ export class WendewareLiveIngestService {
     const { objects, sensorsByDevice } = this.buildFixtureObjects(
       counterSensors,
       gaugeSensors,
-      groupBySensorId(energyReadings),
+      groupBySensorId(counterReadings),
       groupBySensorId(powerReadings),
       groupBySensorId(gaugeReadings),
     );
@@ -280,7 +282,7 @@ export class WendewareLiveIngestService {
     return {
       emsCount: emsList.length,
       sensorCount: counterSensors.length + gaugeSensors.length,
-      readingCount: energyReadings.length + powerReadings.length + gaugeReadings.length,
+      readingCount: counterReadings.length + powerReadings.length + gaugeReadings.length,
       mapResult,
       sensorsByDevice,
     };

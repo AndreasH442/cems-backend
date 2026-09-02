@@ -48,7 +48,7 @@ function mockFetch(url: string | URL | Request): Promise<Response> {
       ),
     );
   }
-  if (href.includes("/sensors/measurements/seqs/energy_mm_counter_seqs")) {
+  if (href.includes("/sensors/measurements/seqs/interpolated_mm_counter_seqs")) {
     return Promise.resolve(
       jsonResponse({
         data: {
@@ -281,7 +281,7 @@ describe("WendewareLiveIngestService (fetch mocked, real DB)", () => {
     await metricMappings.insert({
       tenantId: tenant.id,
       vendorObjectMappingId: pvMapped.id,
-      vendorSensorId: encodeVendorSensorId("sensor-pv", "energy_mm_counter_seqs"),
+      vendorSensorId: encodeVendorSensorId("sensor-pv", "interpolated_mm_counter_seqs"),
       metricDefinitionId: generationTotal!.id,
       unitFactor: 0.001,
     });
@@ -376,7 +376,7 @@ describe("WendewareLiveIngestService (fetch mocked, real DB)", () => {
     await metricMappings.insert({
       tenantId: tenant.id,
       vendorObjectMappingId: lpMapped.id,
-      vendorSensorId: encodeVendorSensorId("sensor-lp", "energy_mm_counter_seqs"),
+      vendorSensorId: encodeVendorSensorId("sensor-lp", "interpolated_mm_counter_seqs"),
       metricDefinitionId: consumptionTotal!.id,
       unitFactor: 0.001,
     });
@@ -483,7 +483,7 @@ describe("WendewareLiveIngestService (fetch mocked, real DB)", () => {
     await metricMappings.insert({
       tenantId: tenant.id,
       vendorObjectMappingId: pvMapped.id,
-      vendorSensorId: encodeVendorSensorId("sensor-pv", "energy_mm_counter_seqs"),
+      vendorSensorId: encodeVendorSensorId("sensor-pv", "interpolated_mm_counter_seqs"),
       metricDefinitionId: generationTotal!.id,
       unitFactor: 0.001,
     });
@@ -503,7 +503,7 @@ describe("WendewareLiveIngestService (fetch mocked, real DB)", () => {
             }),
           );
         }
-        if (href.includes("/sensors/measurements/seqs/energy_mm_counter_seqs")) {
+        if (href.includes("/sensors/measurements/seqs/interpolated_mm_counter_seqs")) {
           return Promise.resolve(
             jsonResponse({
               data: {

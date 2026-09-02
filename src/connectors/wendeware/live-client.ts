@@ -108,9 +108,12 @@ export async function listSensors(
 
 /**
  * The full, closed set of `.../seqs/<type>` values — confirmed by requesting an invalid one and
- * reading the API's own error message (01.09.2026), see docs/data-requirements.md. Only the
- * counter/gauge/power ones are actually used by live-ingest.service.ts; the rest are documented
- * but unused (interpolated_mm_counter_seqs, delta_mm_counter_seqs).
+ * reading the API's own error message (01.09.2026), see docs/data-requirements.md. Used by
+ * live-ingest.service.ts: `interpolated_mm_counter_seqs` (cumulative counter — NOT
+ * `energy_mm_counter_seqs`, which turned out to be interval energy, see "KORREKTUR" in
+ * docs/data-requirements.md), `power_mm_counter_seqs`, `avg_mm_gauge_seqs`. The remaining three
+ * (`energy_mm_counter_seqs`, `delta_mm_counter_seqs`, `delta_per_time_mm_counter_seqs`) are
+ * documented but unused by the connector.
  */
 export const WENDEWARE_SERIES_TYPES = [
   "avg_mm_gauge_seqs",
