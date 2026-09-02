@@ -14,6 +14,7 @@ export const ASSET_TYPES = [
   "GENERATOR",
   "TRANSFORMER",
   "GENERIC_DEVICE",
+  "SUB_DISTRIBUTION",
 ] as const;
 export type AssetType = (typeof ASSET_TYPES)[number];
 

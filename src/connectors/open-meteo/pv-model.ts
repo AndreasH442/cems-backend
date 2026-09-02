@@ -56,18 +56,29 @@ export function computeExpectedAcPowerKw(input: PvModelInput, params: PvModelPar
   return Math.max(0, Math.min(pDc, input.kwAc) * params.invEff);
 }
 
-/** PV plant master data (ADR-012), stored in Asset.configuration for asset_type=PV_SYSTEM. */
+/**
+ * PV plant master data (ADR-012), stored in Asset.configuration for asset_type=PV_SYSTEM. The
+ * first four fields are required for a calculation; dcAcRatio/mounting/shading are documentation
+ * only (docs/master-data-schema.md, ADR-013) — nothing reads them yet, so they're optional and
+ * never block parsing.
+ */
 export interface PvSystemConfiguration {
   readonly nominalCapacityKwp: number;
   readonly acCapacityKw: number;
   readonly tiltDegrees: number;
   readonly azimuthDegrees: number;
+  readonly dcAcRatio?: number;
+  readonly mounting?: string;
+  readonly shading?: string;
 }
 
 /**
  * Parses Asset.configuration into PvSystemConfiguration, or null if incomplete/invalid.
  * "Lieber nichts berechnen als raten" (docs/data-requirements-open-meteo.md) — missing or
- * non-numeric fields mean the asset is silently skipped by the ingest service, not an error.
+ * non-numeric required fields mean the asset is silently skipped by the ingest service, not an
+ * error. The optional documentation fields (dcAcRatio/mounting/shading) are included only when
+ * present with the right type — a wrong type there is silently dropped, not a parse failure,
+ * since they never gate the calculation (ADR-013).
  */
 export function parsePvSystemConfiguration(configuration: Record<string, unknown>): PvSystemConfiguration | null {
   const nominalCapacityKwp = configuration["nominalCapacityKwp"];
@@ -82,5 +93,17 @@ export function parsePvSystemConfiguration(configuration: Record<string, unknown
   ) {
     return null;
   }
-  return { nominalCapacityKwp, acCapacityKw, tiltDegrees, azimuthDegrees };
+
+  const dcAcRatio = configuration["dcAcRatio"];
+  const mounting = configuration["mounting"];
+  const shading = configuration["shading"];
+  return {
+    nominalCapacityKwp,
+    acCapacityKw,
+    tiltDegrees,
+    azimuthDegrees,
+    ...(typeof dcAcRatio === "number" ? { dcAcRatio } : {}),
+    ...(typeof mounting === "string" ? { mounting } : {}),
+    ...(typeof shading === "string" ? { shading } : {}),
+  };
 }

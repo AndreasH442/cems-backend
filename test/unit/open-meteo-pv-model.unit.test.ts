@@ -58,4 +58,36 @@ describe("parsePvSystemConfiguration", () => {
   it("returns null for an empty configuration", () => {
     expect(parsePvSystemConfiguration({})).toBeNull();
   });
+
+  it("includes the optional documentation fields when present with the right type", () => {
+    const config = parsePvSystemConfiguration({
+      nominalCapacityKwp: 250,
+      acCapacityKw: 220,
+      tiltDegrees: 15,
+      azimuthDegrees: 5,
+      dcAcRatio: 1.08,
+      mounting: "Aufdach",
+      shading: "keine",
+    });
+    expect(config).toEqual({
+      nominalCapacityKwp: 250,
+      acCapacityKw: 220,
+      tiltDegrees: 15,
+      azimuthDegrees: 5,
+      dcAcRatio: 1.08,
+      mounting: "Aufdach",
+      shading: "keine",
+    });
+  });
+
+  it("omits optional documentation fields rather than failing when they have the wrong type", () => {
+    const config = parsePvSystemConfiguration({
+      nominalCapacityKwp: 250,
+      acCapacityKw: 220,
+      tiltDegrees: 15,
+      azimuthDegrees: 5,
+      mounting: 42, // wrong type — dropped, not a parse failure
+    });
+    expect(config).toEqual({ nominalCapacityKwp: 250, acCapacityKw: 220, tiltDegrees: 15, azimuthDegrees: 5 });
+  });
 });
