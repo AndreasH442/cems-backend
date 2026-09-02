@@ -4,6 +4,7 @@ import { ScholtIngestService } from "../../src/connectors/scholt/ingest.service.
 import { AssetRepository } from "../../src/infrastructure/repositories/asset.repository.js";
 import { ConnectorRepository } from "../../src/infrastructure/repositories/connector.repository.js";
 import { EnergyCostStatementRepository } from "../../src/infrastructure/repositories/energy-cost-statement.repository.js";
+import { SupplierUsageReadingRepository } from "../../src/infrastructure/repositories/supplier-usage-reading.repository.js";
 import { createTenantWithSite } from "./support/factories.js";
 import { getTestDb, resetDatabase, stopTestDb } from "./support/test-db.js";
 
@@ -14,7 +15,27 @@ function jsonResponse(body: unknown): Response {
   return new Response(JSON.stringify(body), { status: 200 });
 }
 
-function mockFetch(): Promise<Response> {
+function mockFetch(url: string | URL | Request): Promise<Response> {
+  const href = typeof url === "string" ? url : url instanceof URL ? url.href : url.url;
+
+  if (href.includes("/usage/")) {
+    return Promise.resolve(
+      jsonResponse({
+        reference: "871111222233334444",
+        interval: "monthly",
+        usage: [
+          {
+            datetime: "2026-08-01",
+            unit: "kWh",
+            con_volume: 13602.167,
+            con_volume_peak: 4080.832,
+            con_volume_offpeak: 9521.335,
+          },
+        ],
+      }),
+    );
+  }
+
   return Promise.resolve(
     jsonResponse({
       client: "K00000001",
@@ -51,6 +72,7 @@ describe("ScholtIngestService (fetch mocked, real DB)", () => {
   let assets: AssetRepository;
   let connectors: ConnectorRepository;
   let energyCostStatements: EnergyCostStatementRepository;
+  let supplierUsageReadings: SupplierUsageReadingRepository;
   let ingest: ScholtIngestService;
 
   beforeAll(async () => {
@@ -58,7 +80,8 @@ describe("ScholtIngestService (fetch mocked, real DB)", () => {
     assets = new AssetRepository(db);
     connectors = new ConnectorRepository(db);
     energyCostStatements = new EnergyCostStatementRepository(db);
-    ingest = new ScholtIngestService({ connectors, assets, energyCostStatements });
+    supplierUsageReadings = new SupplierUsageReadingRepository(db);
+    ingest = new ScholtIngestService({ connectors, assets, energyCostStatements, supplierUsageReadings });
   });
 
   beforeEach(() => {
@@ -165,5 +188,51 @@ describe("ScholtIngestService (fetch mocked, real DB)", () => {
     expect(lines).toHaveLength(2);
     const allStatements = await energyCostStatements.findBySite(tenant.id, site.id);
     expect(allStatements).toHaveLength(1);
+  });
+
+  it("pullUsage stores readings with the peak/offpeak split, resolved against the matched asset", async () => {
+    const { tenant, site } = await createTenantWithSite(db);
+    const gridConnection = await assets.insert({
+      tenantId: tenant.id,
+      siteId: site.id,
+      assetType: "GRID_CONNECTION",
+      name: "Netzanschluss",
+      configuration: { meteringPointId: "871111222233334444" },
+    });
+    const connector = await connectors.insert({
+      tenantId: tenant.id,
+      vendorType: "SCHOLT",
+      name: "Scholt",
+      secretReference: `env:${IDENTIFIER_VAR},env:${SECRET_VAR}`,
+      siteId: site.id,
+    });
+
+    const result = await ingest.pullUsage(tenant.id, connector.id, "K00000001", "871111222233334444", "ele", "monthly");
+
+    expect(result.readings).toHaveLength(1);
+    expect(result.totalConVolume).toBeCloseTo(13602.167);
+    expect(result.readings[0]!.assetId).toBe(gridConnection.id);
+    expect(result.readings[0]!.conVolumePeak).toBeCloseTo(4080.832);
+    expect(result.readings[0]!.conVolumeOffpeak).toBeCloseTo(9521.335);
+
+    const stored = await supplierUsageReadings.findBySite(tenant.id, site.id);
+    expect(stored).toHaveLength(1);
+  });
+
+  it("re-pulling the same usage bucket replaces it instead of accumulating", async () => {
+    const { tenant, site } = await createTenantWithSite(db);
+    const connector = await connectors.insert({
+      tenantId: tenant.id,
+      vendorType: "SCHOLT",
+      name: "Scholt",
+      secretReference: `env:${IDENTIFIER_VAR},env:${SECRET_VAR}`,
+      siteId: site.id,
+    });
+
+    await ingest.pullUsage(tenant.id, connector.id, "K00000001", "871111222233334444", "ele", "monthly");
+    await ingest.pullUsage(tenant.id, connector.id, "K00000001", "871111222233334444", "ele", "monthly");
+
+    const stored = await supplierUsageReadings.findBySite(tenant.id, site.id);
+    expect(stored).toHaveLength(1);
   });
 });

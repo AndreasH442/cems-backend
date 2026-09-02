@@ -20,6 +20,7 @@ import { createDb } from "../src/infrastructure/db/kysely.js";
 import { AssetRepository } from "../src/infrastructure/repositories/asset.repository.js";
 import { ConnectorRepository } from "../src/infrastructure/repositories/connector.repository.js";
 import { EnergyCostStatementRepository } from "../src/infrastructure/repositories/energy-cost-statement.repository.js";
+import { SupplierUsageReadingRepository } from "../src/infrastructure/repositories/supplier-usage-reading.repository.js";
 
 const DEFAULT_DEV_DATABASE_URL = "postgres://postgres:postgres@localhost:5432/cems_dev";
 
@@ -52,7 +53,8 @@ async function main(): Promise<void> {
     const connectors = new ConnectorRepository(db);
     const assets = new AssetRepository(db);
     const energyCostStatements = new EnergyCostStatementRepository(db);
-    const ingest = new ScholtIngestService({ connectors, assets, energyCostStatements });
+    const supplierUsageReadings = new SupplierUsageReadingRepository(db);
+    const ingest = new ScholtIngestService({ connectors, assets, energyCostStatements, supplierUsageReadings });
 
     console.log(`Ziehe costoverview fuer Connection ${connectionArg}, ${year}-${String(month).padStart(2, "0")} ...`);
     const result = await ingest.pullCostOverview(

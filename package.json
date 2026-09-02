@@ -30,7 +30,8 @@
     "weather:pull-archive": "tsx scripts/weather-pull-archive.ts",
     "curtailment:run": "tsx scripts/curtailment-run.ts",
     "auditor:run": "tsx scripts/auditor-run.ts",
-    "scholt:pull-costs": "tsx scripts/scholt-pull-costoverview.ts"
+    "scholt:pull-costs": "tsx scripts/scholt-pull-costoverview.ts",
+    "scholt:pull-usage": "tsx scripts/scholt-pull-usage.ts"
   },
   "dependencies": {
     "kysely": "^0.29.5",

@@ -309,6 +309,23 @@ export interface EnergyCostStatementLinesTable {
   created_at: Generated<Date>;
 }
 
+export interface SupplierUsageReadingsTable {
+  id: Generated<string>;
+  tenant_id: string;
+  site_id: string;
+  asset_id: string | null;
+  connector_id: string | null;
+  connection_reference: string;
+  utility_type: string;
+  interval: string;
+  bucket_start: Date;
+  unit: string;
+  con_volume: number;
+  con_volume_peak: number | null;
+  con_volume_offpeak: number | null;
+  created_at: Generated<Date>;
+}
+
 export interface Database {
   tenants: TenantsTable;
   organizations: OrganizationsTable;
@@ -336,4 +353,5 @@ export interface Database {
   case_status_history: CaseStatusHistoryTable;
   energy_cost_statements: EnergyCostStatementsTable;
   energy_cost_statement_lines: EnergyCostStatementLinesTable;
+  supplier_usage_readings: SupplierUsageReadingsTable;
 }

@@ -26,6 +26,7 @@ export async function getTestDb(): Promise<Db> {
 const TABLES_IN_TRUNCATE_ORDER = [
   "energy_cost_statement_lines",
   "energy_cost_statements",
+  "supplier_usage_readings",
   "verifications",
   "actions",
   "recommendations",

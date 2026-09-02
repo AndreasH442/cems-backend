@@ -27,3 +27,4 @@ export type AssetMeasurementPointId = Brand<string, "AssetMeasurementPointId">;
 export type MeasurementPointMeterId = Brand<string, "MeasurementPointMeterId">;
 export type EnergyCostStatementId = Brand<string, "EnergyCostStatementId">;
 export type EnergyCostStatementLineId = Brand<string, "EnergyCostStatementLineId">;
+export type SupplierUsageReadingId = Brand<string, "SupplierUsageReadingId">;
