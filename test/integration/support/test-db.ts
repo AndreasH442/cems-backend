@@ -24,6 +24,8 @@ export async function getTestDb(): Promise<Db> {
 
 /** All tenant-scoped tables in FK-safe TRUNCATE order (children first). */
 const TABLES_IN_TRUNCATE_ORDER = [
+  "energy_cost_statement_lines",
+  "energy_cost_statements",
   "verifications",
   "actions",
   "recommendations",

@@ -276,6 +276,39 @@ export interface MeasurementPointMetersTable {
   created_at: Generated<Date>;
 }
 
+export interface EnergyCostStatementsTable {
+  id: Generated<string>;
+  tenant_id: string;
+  site_id: string;
+  asset_id: string | null;
+  connector_id: string | null;
+  supplier_client_reference: string;
+  connection_reference: string;
+  utility_type: string;
+  period_year: number;
+  period_month: number;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
+export interface EnergyCostStatementLinesTable {
+  id: Generated<string>;
+  tenant_id: string;
+  statement_id: string;
+  month: number;
+  article_name: string;
+  article_group: string;
+  tax_percentage: number | null;
+  slice_from: number | null;
+  slice_to: number | null;
+  quantity: number | null;
+  unit_price: number | null;
+  amount: number;
+  tax_amount: number | null;
+  extra: unknown;
+  created_at: Generated<Date>;
+}
+
 export interface Database {
   tenants: TenantsTable;
   organizations: OrganizationsTable;
@@ -301,4 +334,6 @@ export interface Database {
   actions: ActionsTable;
   verifications: VerificationsTable;
   case_status_history: CaseStatusHistoryTable;
+  energy_cost_statements: EnergyCostStatementsTable;
+  energy_cost_statement_lines: EnergyCostStatementLinesTable;
 }
