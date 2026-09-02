@@ -29,7 +29,8 @@
     "live:schedule": "tsx scripts/live-schedule.ts",
     "weather:pull": "tsx scripts/weather-pull.ts",
     "weather:pull-archive": "tsx scripts/weather-pull-archive.ts",
-    "curtailment:run": "tsx scripts/curtailment-run.ts"
+    "curtailment:run": "tsx scripts/curtailment-run.ts",
+    "grid-compliance:run": "tsx scripts/grid-compliance-run.ts"
   },
   "dependencies": {
     "kysely": "^0.29.5",

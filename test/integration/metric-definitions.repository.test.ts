@@ -19,6 +19,7 @@ const SLICE_KEYS = [
   "energy_charge_total",
   "energy_discharge_total",
   "active_power_consumption",
+  "active_power_import",
   "state_of_health",
   "temperature_min",
   "dc_voltage",

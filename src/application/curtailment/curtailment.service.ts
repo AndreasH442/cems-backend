@@ -1,4 +1,5 @@
 import { classifyCurtailment, type CurtailmentClassification } from "./classify-curtailment.js";
+import { counterDiffKwh, dayBounds } from "../shared/measurement-window.js";
 import type { MeasurementIngestionService } from "../ingestion/measurement-ingestion.service.js";
 import type { Measurement } from "../../domain/timeseries/measurement.js";
 import type { AssetId, SiteId, TenantId } from "../../domain/shared/ids.js";
@@ -32,17 +33,6 @@ export interface CurtailmentDayResult {
   readonly expectedPvKwh: number;
   readonly verbrauchKwh: number;
   readonly classification: CurtailmentClassification | null;
-}
-
-function dayBounds(day: Date): { start: Date; end: Date } {
-  const start = new Date(Date.UTC(day.getUTCFullYear(), day.getUTCMonth(), day.getUTCDate()));
-  return { start, end: new Date(start.getTime() + 24 * 60 * 60 * 1000) };
-}
-
-/** Last minus first reading in the window — the standard way to turn a cumulative `_total` counter into an interval energy value (docs/canonical-metrics.md). 0 (not an error) when fewer than two readings exist — documented simplification, see curtailment.service.ts module doc. */
-function counterDiffKwh(rows: readonly Measurement[]): number {
-  if (rows.length < 2) return 0;
-  return rows[rows.length - 1]!.value - rows[0]!.value;
 }
 
 /** Trapezoidal power (kW) -> energy (kWh) integration over the actual timestamps of the readings — robust to mixed resolutions (15-min forecast vs. 1h archive), no fixed slot-length assumption. */

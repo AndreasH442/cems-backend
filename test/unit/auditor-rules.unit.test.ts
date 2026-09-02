@@ -4,10 +4,14 @@ import type { CurtailmentDayResult } from "../../src/application/curtailment/cur
 import {
   CURTAILMENT_REGELUNGS_GAP_FLOOR_KWH,
   evaluateGenerationVsWeatherExpectation,
+  evaluateGridExportLimitExceeded,
+  evaluateGridImportBufferUndershoot,
   evaluateMeasurementMissingWithHeartbeat,
   evaluateSetpointTracking,
   normalizeBatteryActualPower,
+  parseZeroExportConfiguration,
   SETPOINT_TOLERANCE_KW,
+  type ZeroExportConfiguration,
 } from "../../src/application/auditor/rules.js";
 import type { AssetId } from "../../src/domain/shared/ids.js";
 
@@ -185,5 +189,60 @@ describe("evaluateGenerationVsWeatherExpectation", () => {
     const result = evaluateGenerationVsWeatherExpectation({ assetId: ASSET_ID, day, result: resultFrom(8, 10, 50) });
     expect(result).toBeNull();
     expect(CURTAILMENT_REGELUNGS_GAP_FLOOR_KWH).toBeGreaterThan(2);
+  });
+});
+
+describe("parseZeroExportConfiguration", () => {
+  it("parses a complete configuration", () => {
+    expect(parseZeroExportConfiguration({ bufferKw: 10, exportLimitKwh: 15 })).toEqual({
+      bufferKw: 10,
+      exportLimitKwh: 15,
+    });
+  });
+
+  it("returns null when a field is missing", () => {
+    expect(parseZeroExportConfiguration({ bufferKw: 10 })).toBeNull();
+  });
+
+  it("returns null when a field has the wrong type", () => {
+    expect(parseZeroExportConfiguration({ bufferKw: "10", exportLimitKwh: 15 })).toBeNull();
+  });
+
+  it("returns null for an empty configuration (no Nulleinspeisung set up)", () => {
+    expect(parseZeroExportConfiguration({})).toBeNull();
+  });
+});
+
+describe("evaluateGridImportBufferUndershoot", () => {
+  const day = new Date("2026-08-31T00:00:00Z");
+  const config: ZeroExportConfiguration = { bufferKw: 10, exportLimitKwh: 15 };
+
+  it("returns null when the daily minimum import stays at or above the buffer", () => {
+    expect(evaluateGridImportBufferUndershoot({ assetId: ASSET_ID, day, minImportKw: 10, config })).toBeNull();
+  });
+
+  it("flags an anomaly when the daily minimum import falls below the buffer", () => {
+    const result = evaluateGridImportBufferUndershoot({ assetId: ASSET_ID, day, minImportKw: 3, config });
+    expect(result?.ruleKey).toBe("GRID_IMPORT_BUFFER_UNDERSHOOT_V1");
+    expect(result?.assetId).toBe(ASSET_ID);
+    expect(result?.description).toContain("3.00 kW");
+    expect(result?.description).toContain("10.00 kW");
+  });
+});
+
+describe("evaluateGridExportLimitExceeded", () => {
+  const day = new Date("2026-08-31T00:00:00Z");
+  const config: ZeroExportConfiguration = { bufferKw: 10, exportLimitKwh: 15 };
+
+  it("returns null when the daily export stays at or below the limit", () => {
+    expect(evaluateGridExportLimitExceeded({ assetId: ASSET_ID, day, exportKwh: 15, config })).toBeNull();
+  });
+
+  it("flags an anomaly when the daily export exceeds the limit", () => {
+    const result = evaluateGridExportLimitExceeded({ assetId: ASSET_ID, day, exportKwh: 40, config });
+    expect(result?.ruleKey).toBe("GRID_EXPORT_LIMIT_EXCEEDED_V1");
+    expect(result?.assetId).toBe(ASSET_ID);
+    expect(result?.description).toContain("40.00 kWh");
+    expect(result?.description).toContain("15.00 kWh");
   });
 });
