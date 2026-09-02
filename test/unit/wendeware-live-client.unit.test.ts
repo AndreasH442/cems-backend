@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { resolveCredentialsFromEnv } from "../../src/connectors/wendeware/credentials.js";
-import { parseLatestValuesResponse } from "../../src/connectors/wendeware/live-client.js";
+import { parseLatestValuesResponse, parseSeriesResponse } from "../../src/connectors/wendeware/live-client.js";
 
 // Synthetic payloads shaped like the confirmed myPowerGrid response format
 // (docs/data-requirements.md) — no real customer data.
@@ -50,6 +50,52 @@ describe("parseLatestValuesResponse", () => {
   it("handles a malformed/empty payload without throwing", () => {
     expect(parseLatestValuesResponse({}, ["sensor-1"])).toEqual([]);
     expect(parseLatestValuesResponse(undefined, ["sensor-1"])).toEqual([]);
+  });
+});
+
+// Same response shape as parseLatestValuesResponse's payloads — different extraction: every
+// point, not just the latest per sensor (used for backfill, docs/data-requirements.md).
+describe("parseSeriesResponse", () => {
+  it("returns every non-null point for every sensor, in order", () => {
+    const payload = {
+      data: {
+        attributes: {
+          datetimes: ["2026-09-01T10:00:00Z", "2026-09-01T10:01:00Z", "2026-09-01T10:02:00Z"],
+          "sensor-1": [1.1, 1.2, 1.3],
+          "sensor-2": [5, 6, 7],
+        },
+      },
+    };
+    const readings = parseSeriesResponse(payload, ["sensor-1", "sensor-2"]);
+    expect(readings).toEqual([
+      { sensorId: "sensor-1", value: 1.1, timestamp: "2026-09-01T10:00:00Z" },
+      { sensorId: "sensor-1", value: 1.2, timestamp: "2026-09-01T10:01:00Z" },
+      { sensorId: "sensor-1", value: 1.3, timestamp: "2026-09-01T10:02:00Z" },
+      { sensorId: "sensor-2", value: 5, timestamp: "2026-09-01T10:00:00Z" },
+      { sensorId: "sensor-2", value: 6, timestamp: "2026-09-01T10:01:00Z" },
+      { sensorId: "sensor-2", value: 7, timestamp: "2026-09-01T10:02:00Z" },
+    ]);
+  });
+
+  it("skips individual null points without dropping the rest of the sensor's series", () => {
+    const payload = {
+      data: {
+        attributes: {
+          datetimes: ["2026-09-01T10:00:00Z", "2026-09-01T10:01:00Z", "2026-09-01T10:02:00Z"],
+          "sensor-1": [2.5, null, 2.7],
+        },
+      },
+    };
+    const readings = parseSeriesResponse(payload, ["sensor-1"]);
+    expect(readings).toEqual([
+      { sensorId: "sensor-1", value: 2.5, timestamp: "2026-09-01T10:00:00Z" },
+      { sensorId: "sensor-1", value: 2.7, timestamp: "2026-09-01T10:02:00Z" },
+    ]);
+  });
+
+  it("handles a malformed/empty payload without throwing", () => {
+    expect(parseSeriesResponse({}, ["sensor-1"])).toEqual([]);
+    expect(parseSeriesResponse(undefined, ["sensor-1"])).toEqual([]);
   });
 });
 

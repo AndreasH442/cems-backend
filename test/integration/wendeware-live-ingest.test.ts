@@ -451,4 +451,118 @@ describe("WendewareLiveIngestService (fetch mocked, real DB)", () => {
       .executeTakeFirst();
     expect(priceRow?.value).toBeCloseTo(0.0618);
   });
+
+  it("pullRange ingests every reading in a series (backfill), not just the latest", async () => {
+    const { tenant, site } = await createTenantWithSite(db);
+    const inverter = await assets.insert({
+      tenantId: tenant.id,
+      siteId: site.id,
+      assetType: "PV_INVERTER",
+      name: "PV-Wechselrichter 1",
+    });
+    const connector = await connectors.insert({
+      tenantId: tenant.id,
+      vendorType: "WENDEWARE",
+      name: "Live Connector",
+      secretReference: `env:${CLIENT_ID_VAR},env:${CLIENT_SECRET_VAR}`,
+      siteId: site.id,
+    });
+
+    const pvDiscovered = await objectMappings.discover({
+      tenantId: tenant.id,
+      connectorId: connector.id,
+      vendorObjectId: "device-1",
+    });
+    const pvMapped = await objectMappings.mapToAsset({
+      tenantId: tenant.id,
+      id: pvDiscovered.id,
+      targetAssetId: inverter.id,
+      mappingStatus: "MANUAL_MAPPED",
+    });
+    const generationTotal = await metricDefinitions.findByKey("energy_generation_total");
+    await metricMappings.insert({
+      tenantId: tenant.id,
+      vendorObjectMappingId: pvMapped.id,
+      vendorSensorId: encodeVendorSensorId("sensor-pv", "energy_mm_counter_seqs"),
+      metricDefinitionId: generationTotal!.id,
+      unitFactor: 0.001,
+    });
+
+    // Override the module-level single-point mock with a three-point series for this test only.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string | URL | Request) => {
+        const href = typeof url === "string" ? url : url instanceof URL ? url.href : url.url;
+        if (href.includes("openid-connect/token")) {
+          return Promise.resolve(jsonResponse({ access_token: "fake-token", expires_in: 300, token_type: "Bearer" }));
+        }
+        if (href.includes("/energy_management_systems")) {
+          return Promise.resolve(
+            jsonResponse({
+              data: [{ id: "ems-1", type: "energy_management_systems", attributes: { name: "Test EMS" } }],
+            }),
+          );
+        }
+        if (href.includes("/sensors/measurements/seqs/energy_mm_counter_seqs")) {
+          return Promise.resolve(
+            jsonResponse({
+              data: {
+                attributes: {
+                  datetimes: ["2026-08-15T00:00:00Z", "2026-08-15T08:00:00Z", "2026-08-15T16:00:00Z"],
+                  "sensor-pv": [1_000_000, 1_050_000, 1_120_000],
+                },
+              },
+            }),
+          );
+        }
+        if (href.includes("/sensors/measurements/seqs/power_mm_counter_seqs")) {
+          return Promise.resolve(jsonResponse({ data: { attributes: { datetimes: [], "sensor-pv": [] } } }));
+        }
+        if (href.includes("/sensors/measurements/seqs/avg_mm_gauge_seqs")) {
+          return Promise.resolve(jsonResponse({ data: { attributes: { datetimes: [] } } }));
+        }
+        if (href.includes("/sensors") && href.includes("filter%5Bsensor_type%5D%5Btype_id%5D=pv_meter_supply")) {
+          return Promise.resolve(
+            jsonResponse({
+              data: [
+                {
+                  id: "sensor-pv",
+                  type: "sensors",
+                  attributes: { label: "PV-WR 1", unit: "Wh" },
+                  relationships: { device: { data: { id: "device-1", type: "devices" } } },
+                },
+              ],
+            }),
+          );
+        }
+        if (href.includes("/sensors")) return Promise.resolve(jsonResponse({ data: [] }));
+        return Promise.resolve(new Response("not found", { status: 404 }));
+      }),
+    );
+
+    const result = await liveIngest.pullRange(
+      tenant.id,
+      connector.id,
+      new Date("2026-08-15T00:00:00Z"),
+      new Date("2026-08-16T00:00:00Z"),
+      "8 hours",
+    );
+
+    expect(result.mapResult.measurementsIngested).toBe(3);
+
+    const rows = await db
+      .selectFrom("measurements")
+      .selectAll()
+      .where("tenant_id", "=", tenant.id)
+      .where("asset_id", "=", inverter.id)
+      .orderBy("timestamp", "asc")
+      .execute();
+    expect(rows).toHaveLength(3);
+    expect(rows.map((r) => r.value)).toEqual([1000, 1050, 1120]);
+    expect(rows.map((r) => r.timestamp.toISOString())).toEqual([
+      "2026-08-15T00:00:00.000Z",
+      "2026-08-15T08:00:00.000Z",
+      "2026-08-15T16:00:00.000Z",
+    ]);
+  });
 });

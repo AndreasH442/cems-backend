@@ -142,6 +142,9 @@ export interface WendewareLatestReading {
   readonly timestamp: string;
 }
 
+/** Same shape as WendewareLatestReading — a neutral alias for series/backfill call sites, where "latest" would be misleading (every point in a range, not just the last one). */
+export type WendewareReading = WendewareLatestReading;
+
 /** Pure — the response has one `datetimes[]` array plus one parallel `<sensorId>[]` array per sensor. */
 export function parseLatestValuesResponse(payload: unknown, sensorIds: readonly string[]): WendewareLatestReading[] {
   const attrs = (payload as { data?: { attributes?: Record<string, unknown> } } | undefined)?.data?.attributes ?? {};
@@ -182,4 +185,55 @@ export async function fetchLatestValues(
     "filter[tz]": timezone,
   });
   return parseLatestValuesResponse(payload, sensorIds);
+}
+
+/**
+ * Pure — every non-null (sensorId, value, timestamp) point in the response, not just the latest
+ * per sensor. Used for backfill (fetchSeriesValues below), where every point in the range is
+ * meant to become its own Measurement — unlike parseLatestValuesResponse, which is deliberately
+ * lossy (used for "what's the state right now" pulls, not history).
+ */
+export function parseSeriesResponse(payload: unknown, sensorIds: readonly string[]): WendewareReading[] {
+  const attrs = (payload as { data?: { attributes?: Record<string, unknown> } } | undefined)?.data?.attributes ?? {};
+  const datetimes = (attrs["datetimes"] as (string | undefined)[] | undefined) ?? [];
+
+  const readings: WendewareReading[] = [];
+  for (const sensorId of sensorIds) {
+    const values = (attrs[sensorId] as (number | null | undefined)[] | undefined) ?? [];
+    for (let i = 0; i < values.length; i++) {
+      const value = values[i];
+      const timestamp = datetimes[i];
+      if (value !== null && value !== undefined && timestamp) {
+        readings.push({ sensorId, value, timestamp });
+      }
+    }
+  }
+  return readings;
+}
+
+/**
+ * Full time series over an explicit [dateFrom, dateTo] range, at the given resolution — for
+ * historical backfill (a whole day, etc.), not "current state" pulls. Confirmed resolutions
+ * (docs/data-requirements.md): "1 minute", "15 minutes", "2 days", "1 month".
+ */
+export async function fetchSeriesValues(
+  token: string,
+  seriesType: WendewareSeriesType,
+  sensorIds: readonly string[],
+  dateFrom: Date,
+  dateTo: Date,
+  resolution: string,
+  apiBase = DEFAULT_API_BASE,
+  timezone = "Europe/Berlin",
+): Promise<WendewareReading[]> {
+  if (sensorIds.length === 0) return [];
+
+  const payload = await apiGet(token, apiBase, `/sensors/measurements/seqs/${seriesType}`, {
+    "filter[sensorIds]": sensorIds.join(","),
+    "filter[tFilter][dateFrom]": dateFrom.toISOString(),
+    "filter[tFilter][dateTo]": dateTo.toISOString(),
+    "filter[resolution]": resolution,
+    "filter[tz]": timezone,
+  });
+  return parseSeriesResponse(payload, sensorIds);
 }

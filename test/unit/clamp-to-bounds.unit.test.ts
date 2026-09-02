@@ -14,11 +14,26 @@ describe("clampToMetricBounds", () => {
     expect(clampToMetricBounds(-2.2737367544323206e-16, METRIC)).toBe(0);
   });
 
+  it("clamps larger reset/resolution-boundary noise (milli-Wh scale) below min to the bound", () => {
+    // Real value from a full-day backfill of a freshly-reset counter (01.09.2026) — bigger than
+    // IEEE754 epsilon, still noise rather than a real negative reading (docs/data-requirements.md).
+    expect(clampToMetricBounds(-0.0002589547522366047, METRIC)).toBe(0);
+  });
+
+  it("clamps real dusk/dawn derivative noise (up to ~0.08 kW) below min to the bound", () => {
+    // Worst case from a whole-day survey of every mapped sensor (01.09.2026,
+    // docs/data-requirements.md): PV output tapering toward zero at dusk makes the underlying
+    // derivative noise proportionally largest exactly where it can cross the zero bound.
+    expect(
+      clampToMetricBounds(-0.08416591776907444, { key: "active_power_generation", minValue: 0, maxValue: null }),
+    ).toBe(0);
+  });
+
   it("clamps floating-point noise just above max to the bound", () => {
     expect(clampToMetricBounds(100 + 1e-10, BOUNDED_METRIC)).toBe(100);
   });
 
-  it("still rejects a value genuinely below min", () => {
+  it("still rejects a value genuinely below min, beyond the widened tolerance", () => {
     expect(() => clampToMetricBounds(-1, METRIC)).toThrow(/below min/);
   });
 
