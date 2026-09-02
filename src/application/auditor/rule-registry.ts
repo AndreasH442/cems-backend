@@ -1,11 +1,13 @@
 import type { CaseBuilder } from "./case-builder.js";
 import {
   type AnomalyCandidate,
+  evaluateGenerationVsWeatherExpectation,
   evaluateGridExportLimitExceeded,
   evaluateGridImportBufferUndershoot,
   evaluateSetpointTracking,
   normalizeBatteryActualPower,
 } from "./rules.js";
+import { parseCurtailmentScopeConfiguration, type CurtailmentService } from "../curtailment/curtailment.service.js";
 import type { GridComplianceService } from "../grid-compliance/grid-compliance.service.js";
 import type { Anomaly, AuditorRuleKey } from "../../domain/auditor/anomaly.js";
 import type { Asset, AssetType } from "../../domain/assets/asset.js";
@@ -26,12 +28,16 @@ const GRACE_WINDOW_MS = 60_000;
  * evaluate*-Funktion aus rules.ts), aber Discovery/Persistenz/Case-Bau passieren einmalig in
  * runAuditorForTenant statt pro Skript neu.
  *
- * Nicht jede bestehende Regel ist hier registriert: PV_GENERATION_VS_WEATHER_V1 braucht vier
- * zusammengehörige Asset-IDs (PV-Anlage, Netzanschluss, Verbrauch, Site) ohne modellierte
- * Domain-Relation dazwischen — automatische Entdeckung wäre Raten, kein Refactoring (bleibt
- * scripts/curtailment-run.ts, manuelle Argumente). MEASUREMENT_MISSING_WITH_HEARTBEAT_V1 braucht
- * pro Asset eine "welche Metrik/welches Fenster" -Konfiguration, die noch nirgends als Stammdatum
- * existiert (bleibt test-only, siehe test/integration/auditor-e2e.test.ts).
+ * PV_GENERATION_VS_WEATHER_V1 löst seine vier zusammengehörigen Asset-IDs (PV-Anlage, Netzanschluss,
+ * Verbrauch, Site) über PV_SYSTEM.configuration auf (`parseCurtailmentScopeConfiguration`,
+ * curtailment.service.ts) — explizite Referenzen statt Raten, gleiches Muster wie
+ * SUB_DISTRIBUTION.configuration.circuits[].feedsAssetIds (ADR-013). scripts/curtailment-run.ts
+ * bleibt trotzdem zusätzlich bestehen — es druckt die volle Tages-KPI-Aufschlüsselung auch ohne
+ * Anomalie, echter Diagnose-Mehrwert über die Registry hinaus.
+ *
+ * MEASUREMENT_MISSING_WITH_HEARTBEAT_V1 ist weiterhin nicht registriert: braucht pro Asset eine
+ * "welche Metrik/welches Fenster" -Konfiguration, die noch nirgends als Stammdatum existiert
+ * (bleibt test-only, siehe test/integration/auditor-e2e.test.ts).
  */
 export interface AuditorRuleContext {
   /** Für punktuelle Regeln (ControlIntent-Lookback) — "jetzt". */
@@ -46,6 +52,7 @@ export interface AuditorRuleDeps {
   readonly controlIntents: ControlIntentRepository;
   readonly metricDefinitions: MetricDefinitionRepository;
   readonly gridCompliance: GridComplianceService;
+  readonly curtailmentService: CurtailmentService;
 }
 
 export interface AuditorRuleModule {
@@ -150,11 +157,33 @@ export const gridExportLimitExceededModule: AuditorRuleModule = {
   },
 };
 
+export const pvGenerationVsWeatherModule: AuditorRuleModule = {
+  ruleKey: "PV_GENERATION_VS_WEATHER_V1",
+  targetAssetTypes: ["PV_SYSTEM"],
+  async run(deps, tenantId, asset, ctx) {
+    const scope = parseCurtailmentScopeConfiguration(asset.configuration);
+    if (!scope) return null;
+
+    const result = await deps.curtailmentService.computeForDay({
+      tenantId,
+      siteId: asset.siteId,
+      pvSystemAssetId: asset.id,
+      gridConnectionAssetId: scope.gridConnectionAssetId,
+      userConsumptionAssetId: scope.userConsumptionAssetId,
+      day: ctx.day,
+    });
+    if (result.skipped || !result.classification) return null;
+
+    return evaluateGenerationVsWeatherExpectation({ assetId: asset.id, day: ctx.day, result });
+  },
+};
+
 export const AUDITOR_RULE_MODULES: readonly AuditorRuleModule[] = [
   batterySetpointTrackingModule,
   pvSetpointVsActualModule,
   gridImportBufferUndershootModule,
   gridExportLimitExceededModule,
+  pvGenerationVsWeatherModule,
 ];
 
 export interface AuditorAssetResult {

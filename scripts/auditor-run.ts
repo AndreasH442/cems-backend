@@ -4,9 +4,9 @@
  * the previous scripts/live-run-auditor.ts (Battery/PV setpoint) and scripts/grid-compliance-run.ts
  * (Nulleinspeisung), which each hand-wired their own asset discovery and case-building.
  *
- * PV_GENERATION_VS_WEATHER_V1 is NOT covered here — it needs four coordinated asset IDs with no
- * modelled domain relation between them (see rule-registry.ts doc comment) — use
- * scripts/curtailment-run.ts for that.
+ * PV_GENERATION_VS_WEATHER_V1 IS covered here (via PV_SYSTEM.configuration's curtailment-scope
+ * references, see rule-registry.ts doc comment) — scripts/curtailment-run.ts still exists
+ * separately for its detailed KPI printout even when nothing fires.
  *
  * Usage:
  *   npm run auditor:run -- <tenantId> [dayISO]
@@ -14,7 +14,9 @@
  */
 import { CaseBuilder } from "../src/application/auditor/case-builder.js";
 import { runAuditorForTenant } from "../src/application/auditor/rule-registry.js";
+import { CurtailmentService } from "../src/application/curtailment/curtailment.service.js";
 import { GridComplianceService } from "../src/application/grid-compliance/grid-compliance.service.js";
+import { MeasurementIngestionService } from "../src/application/ingestion/measurement-ingestion.service.js";
 import type { TenantId } from "../src/domain/shared/ids.js";
 import { createPool } from "../src/infrastructure/db/client.js";
 import { createDb } from "../src/infrastructure/db/kysely.js";
@@ -25,6 +27,7 @@ import { CaseStatusHistoryRepository } from "../src/infrastructure/repositories/
 import { CaseSubjectRepository } from "../src/infrastructure/repositories/case-subject.repository.js";
 import { CaseRepository } from "../src/infrastructure/repositories/case.repository.js";
 import { ControlIntentRepository } from "../src/infrastructure/repositories/control-intent.repository.js";
+import { MeasurementPointRepository } from "../src/infrastructure/repositories/measurement-point.repository.js";
 import { MeasurementRepository } from "../src/infrastructure/repositories/measurement.repository.js";
 import { MetricDefinitionRepository } from "../src/infrastructure/repositories/metric-definition.repository.js";
 
@@ -56,10 +59,18 @@ async function main(): Promise<void> {
   try {
     const assets = new AssetRepository(db);
     const measurements = new MeasurementRepository(db);
+    const measurementPoints = new MeasurementPointRepository(db);
     const controlIntents = new ControlIntentRepository(db);
     const metricDefinitions = new MetricDefinitionRepository(db);
     const anomalies = new AnomalyRepository(db);
     const gridCompliance = new GridComplianceService({ assets, measurements, metricDefinitions });
+    const curtailmentService = new CurtailmentService({
+      measurements,
+      measurementPoints,
+      assets,
+      metricDefinitions,
+      measurementIngestion: new MeasurementIngestionService(measurements, metricDefinitions),
+    });
     const caseBuilder = new CaseBuilder({
       cases: new CaseRepository(db),
       caseSubjects: new CaseSubjectRepository(db),
@@ -72,7 +83,16 @@ async function main(): Promise<void> {
     console.log("");
 
     const results = await runAuditorForTenant(
-      { assets, measurements, controlIntents, metricDefinitions, gridCompliance, anomalies, caseBuilder },
+      {
+        assets,
+        measurements,
+        controlIntents,
+        metricDefinitions,
+        gridCompliance,
+        curtailmentService,
+        anomalies,
+        caseBuilder,
+      },
       tenantId,
       { now, day },
     );

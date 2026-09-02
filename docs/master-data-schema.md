@@ -34,6 +34,15 @@ Rechenrelevant, geparst von `parsePvSystemConfiguration` (`src/connectors/open-m
 
 Fehlt eines der vier Pflichtfelder oder hat den falschen Typ, liefert der Parser `null` — die PV-Erwartung wird für dieses Asset dann übersprungen, nicht geraten.
 
+**Curtailment-Scope** (rechenrelevant, geparst von `parseCurtailmentScopeConfiguration`, `src/application/curtailment/curtailment.service.ts` — genutzt vom Auditor-Modul `pvGenerationVsWeatherModule`, `src/application/auditor/rule-registry.ts`): welche `GRID_CONNECTION`/`LOAD`-Assets zu dieser PV-Anlage für die Curtailment-Berechnung gehören. `siteId` wird nicht extra gespeichert (bereits auf dem Asset selbst). Gleiches Muster wie `SUB_DISTRIBUTION.configuration.circuits[].feedsAssetIds` (ADR-013) — Asset-IDs als String, kein FK-Constraint.
+
+| Feld                     | Typ               | Kategorie      |
+| ------------------------ | ----------------- | -------------- |
+| `gridConnectionAssetId`  | string (Asset-ID) | Rechenrelevant |
+| `userConsumptionAssetId` | string (Asset-ID) | Rechenrelevant |
+
+Fehlt eines der beiden Felder, wird das PV_SYSTEM-Asset vom Auditor-Baukasten automatisch übersprungen (keine Curtailment-Prüfung für dieses Asset, kein Fehler).
+
 ## PV_INVERTER (`assets.configuration`)
 
 Reine Dokumentation, kein Parser:

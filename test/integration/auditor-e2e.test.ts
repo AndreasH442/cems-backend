@@ -10,6 +10,7 @@ import {
   pvSetpointVsActualModule,
   type AuditorRuleModule,
 } from "../../src/application/auditor/rule-registry.js";
+import { CurtailmentService } from "../../src/application/curtailment/curtailment.service.js";
 import { GridComplianceService } from "../../src/application/grid-compliance/grid-compliance.service.js";
 import { ControlIntentIngestionService } from "../../src/application/ingestion/control-intent-ingestion.service.js";
 import { MeasurementIngestionService } from "../../src/application/ingestion/measurement-ingestion.service.js";
@@ -23,6 +24,7 @@ import { CaseSubjectRepository } from "../../src/infrastructure/repositories/cas
 import { CaseRepository } from "../../src/infrastructure/repositories/case.repository.js";
 import { ControlIntentRepository } from "../../src/infrastructure/repositories/control-intent.repository.js";
 import { EventRepository } from "../../src/infrastructure/repositories/event.repository.js";
+import { MeasurementPointRepository } from "../../src/infrastructure/repositories/measurement-point.repository.js";
 import { MeasurementRepository } from "../../src/infrastructure/repositories/measurement.repository.js";
 import { MetricDefinitionRepository } from "../../src/infrastructure/repositories/metric-definition.repository.js";
 import { VerificationRepository } from "../../src/infrastructure/repositories/verification.repository.js";
@@ -53,11 +55,13 @@ describe("Digital Auditor end-to-end (Anomaly -> Case -> Action -> Verification)
   let manualOps: ManualOperationsService;
   let cases: CaseRepository;
   let gridCompliance: GridComplianceService;
+  let curtailmentService: CurtailmentService;
 
   beforeAll(async () => {
     db = await getTestDb();
     assets = new AssetRepository(db);
     measurements = new MeasurementRepository(db);
+    const measurementPoints = new MeasurementPointRepository(db);
     controlIntents = new ControlIntentRepository(db);
     events = new EventRepository(db);
     metricDefinitions = new MetricDefinitionRepository(db);
@@ -67,6 +71,13 @@ describe("Digital Auditor end-to-end (Anomaly -> Case -> Action -> Verification)
     // Not exercised by the setpoint-tracking scenarios below — required only because
     // AuditorRuleDeps is one shared shape for every rule module (rule-registry.ts).
     gridCompliance = new GridComplianceService({ assets, measurements, metricDefinitions });
+    curtailmentService = new CurtailmentService({
+      measurements,
+      measurementPoints,
+      assets,
+      metricDefinitions,
+      measurementIngestion,
+    });
     cases = new CaseRepository(db);
     caseBuilder = new CaseBuilder({
       cases,
@@ -103,7 +114,7 @@ describe("Digital Auditor end-to-end (Anomaly -> Case -> Action -> Verification)
     asset: Asset,
   ): Promise<Anomaly | null> {
     const candidate = await module.run(
-      { assets, measurements, controlIntents, metricDefinitions, gridCompliance },
+      { assets, measurements, controlIntents, metricDefinitions, gridCompliance, curtailmentService },
       tenantId,
       asset,
       { now: new Date(), day: new Date() },

@@ -35,6 +35,33 @@ export interface CurtailmentDayResult {
   readonly classification: CurtailmentClassification | null;
 }
 
+export interface CurtailmentScopeConfiguration {
+  readonly gridConnectionAssetId: AssetId;
+  readonly userConsumptionAssetId: AssetId;
+}
+
+/**
+ * Reads which GRID_CONNECTION/LOAD assets belong to a PV_SYSTEM for curtailment purposes, from
+ * PV_SYSTEM.configuration (ADR-012). `null` means not configured — the Auditor rule module
+ * (application/auditor/rule-registry.ts) then skips this asset rather than guessing, same
+ * "presence of configuration = activation" convention as parsePvSystemConfiguration/
+ * parseZeroExportConfiguration. `siteId` is not stored here — it's already on the PV_SYSTEM
+ * asset itself (Asset.siteId).
+ */
+export function parseCurtailmentScopeConfiguration(
+  configuration: Record<string, unknown>,
+): CurtailmentScopeConfiguration | null {
+  const gridConnectionAssetId = configuration["gridConnectionAssetId"];
+  const userConsumptionAssetId = configuration["userConsumptionAssetId"];
+  if (typeof gridConnectionAssetId !== "string" || typeof userConsumptionAssetId !== "string") {
+    return null;
+  }
+  return {
+    gridConnectionAssetId: gridConnectionAssetId as AssetId,
+    userConsumptionAssetId: userConsumptionAssetId as AssetId,
+  };
+}
+
 /** Trapezoidal power (kW) -> energy (kWh) integration over the actual timestamps of the readings — robust to mixed resolutions (15-min forecast vs. 1h archive), no fixed slot-length assumption. */
 function trapezoidalIntegrateKwh(rows: readonly Measurement[]): number {
   let kwh = 0;
