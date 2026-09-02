@@ -2,10 +2,12 @@
  * Runs the daily curtailment classification (application/curtailment/curtailment.service.ts) for
  * one PV_SYSTEM asset and one day, prints the result (regelungs-/design-bedingter Anteil), and —
  * if the ADR-009-style auditor rule PV_GENERATION_VS_WEATHER_V1 fires — builds a real Case
- * (CaseBuilder), same as scripts/live-run-auditor.ts.
+ * (CaseBuilder), same as scripts/auditor-run.ts.
  *
  * Needs expected_active_power data for that day already ingested (weather:pull /
  * weather:pull-archive) and the PV_SYSTEM's PV_INVERTER children linked via parentAssetId.
+ * Not covered by scripts/auditor-run.ts's rule registry — see
+ * src/application/auditor/rule-registry.ts's doc comment for why.
  *
  * Usage:
  *   npm run curtailment:run -- <tenantId> <siteId> <pvSystemAssetId> <gridConnectionAssetId> <userConsumptionAssetId> <dayISO>

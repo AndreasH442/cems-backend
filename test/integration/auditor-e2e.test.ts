@@ -1,13 +1,16 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import type { Db } from "../../src/infrastructure/db/kysely.js";
 import type { Anomaly } from "../../src/domain/auditor/anomaly.js";
+import type { Asset } from "../../src/domain/assets/asset.js";
 import type { AssetId, SiteId, TenantId } from "../../src/domain/shared/ids.js";
-import {
-  evaluateMeasurementMissingWithHeartbeat,
-  evaluateSetpointTracking,
-  normalizeBatteryActualPower,
-} from "../../src/application/auditor/rules.js";
+import { evaluateMeasurementMissingWithHeartbeat } from "../../src/application/auditor/rules.js";
 import { CaseBuilder } from "../../src/application/auditor/case-builder.js";
+import {
+  batterySetpointTrackingModule,
+  pvSetpointVsActualModule,
+  type AuditorRuleModule,
+} from "../../src/application/auditor/rule-registry.js";
+import { GridComplianceService } from "../../src/application/grid-compliance/grid-compliance.service.js";
 import { ControlIntentIngestionService } from "../../src/application/ingestion/control-intent-ingestion.service.js";
 import { MeasurementIngestionService } from "../../src/application/ingestion/measurement-ingestion.service.js";
 import { ManualOperationsService } from "../../src/application/operations/manual-operations.service.js";
@@ -31,8 +34,6 @@ import { getTestDb, resetDatabase, stopTestDb } from "./support/test-db.js";
 // remaining five (docs/first-vertical-slice.md): setpoint followed/not followed, action ->
 // verification, PV setpoint vs actual, and measurement-missing-with-heartbeat.
 
-const GRACE_WINDOW_MS = 60_000;
-
 /** Shorthand for the ASSET-subject fields every ingest call in this file needs. */
 function assetSubject(assetId: AssetId) {
   return { subjectType: "ASSET" as const, assetId, componentId: null };
@@ -51,6 +52,7 @@ describe("Digital Auditor end-to-end (Anomaly -> Case -> Action -> Verification)
   let caseBuilder: CaseBuilder;
   let manualOps: ManualOperationsService;
   let cases: CaseRepository;
+  let gridCompliance: GridComplianceService;
 
   beforeAll(async () => {
     db = await getTestDb();
@@ -62,6 +64,9 @@ describe("Digital Auditor end-to-end (Anomaly -> Case -> Action -> Verification)
     anomalies = new AnomalyRepository(db);
     measurementIngestion = new MeasurementIngestionService(measurements, metricDefinitions);
     controlIntentIngestion = new ControlIntentIngestionService(controlIntents, metricDefinitions);
+    // Not exercised by the setpoint-tracking scenarios below — required only because
+    // AuditorRuleDeps is one shared shape for every rule module (rule-registry.ts).
+    gridCompliance = new GridComplianceService({ assets, measurements, metricDefinitions });
     cases = new CaseRepository(db);
     caseBuilder = new CaseBuilder({
       cases,
@@ -86,64 +91,23 @@ describe("Digital Auditor end-to-end (Anomaly -> Case -> Action -> Verification)
     await stopTestDb();
   });
 
-  /** Runner glue for BATTERY_SETPOINT_TRACKING_V1 — persists an Anomaly if the rule fires. */
-  async function runBatterySetpointTracking(
+  /**
+   * Runner glue for BATTERY_SETPOINT_TRACKING_V1 / PV_SETPOINT_VS_ACTUAL_V1 — calls the real,
+   * production rule modules (application/auditor/rule-registry.ts) instead of a parallel
+   * reimplementation, so this test exercises the actual Baukasten code path.
+   */
+  async function runModule(
+    module: AuditorRuleModule,
     tenantId: TenantId,
     siteId: SiteId,
-    assetId: AssetId,
+    asset: Asset,
   ): Promise<Anomaly | null> {
-    const [setpointMetric, chargeMetric, dischargeMetric] = await Promise.all([
-      metricDefinitions.findByKey("active_power_setpoint"),
-      metricDefinitions.findByKey("active_power_charge"),
-      metricDefinitions.findByKey("active_power_discharge"),
-    ]);
-    const setpoint = await controlIntents.findLatestBefore(tenantId, assetId, setpointMetric!.id, new Date());
-    if (!setpoint) return null;
-
-    const windowEnd = new Date(setpoint.timestamp.getTime() + GRACE_WINDOW_MS);
-    const [charge, discharge] = await Promise.all([
-      measurements.findEarliestInWindow(tenantId, assetId, chargeMetric!.id, setpoint.timestamp, windowEnd),
-      measurements.findEarliestInWindow(tenantId, assetId, dischargeMetric!.id, setpoint.timestamp, windowEnd),
-    ]);
-    if (!charge || !discharge) return null;
-
-    const actualValue = normalizeBatteryActualPower(charge.value, discharge.value);
-    const actualTimestamp = charge.timestamp > discharge.timestamp ? charge.timestamp : discharge.timestamp;
-    const candidate = evaluateSetpointTracking({
-      assetId,
-      ruleKey: "BATTERY_SETPOINT_TRACKING_V1",
-      setpoint: { value: setpoint.value, timestamp: setpoint.timestamp },
-      actual: { value: actualValue, timestamp: actualTimestamp },
-    });
-    if (!candidate) return null;
-    return anomalies.insert({ tenantId, siteId, ...candidate });
-  }
-
-  /** Runner glue for PV_SETPOINT_VS_ACTUAL_V1. */
-  async function runPvSetpointVsActual(tenantId: TenantId, siteId: SiteId, assetId: AssetId): Promise<Anomaly | null> {
-    const [setpointMetric, generationMetric] = await Promise.all([
-      metricDefinitions.findByKey("active_power_setpoint"),
-      metricDefinitions.findByKey("active_power_generation"),
-    ]);
-    const setpoint = await controlIntents.findLatestBefore(tenantId, assetId, setpointMetric!.id, new Date());
-    if (!setpoint) return null;
-
-    const windowEnd = new Date(setpoint.timestamp.getTime() + GRACE_WINDOW_MS);
-    const actual = await measurements.findEarliestInWindow(
+    const candidate = await module.run(
+      { assets, measurements, controlIntents, metricDefinitions, gridCompliance },
       tenantId,
-      assetId,
-      generationMetric!.id,
-      setpoint.timestamp,
-      windowEnd,
+      asset,
+      { now: new Date(), day: new Date() },
     );
-    if (!actual) return null;
-
-    const candidate = evaluateSetpointTracking({
-      assetId,
-      ruleKey: "PV_SETPOINT_VS_ACTUAL_V1",
-      setpoint: { value: setpoint.value, timestamp: setpoint.timestamp },
-      actual: { value: actual.value, timestamp: actual.timestamp },
-    });
     if (!candidate) return null;
     return anomalies.insert({ tenantId, siteId, ...candidate });
   }
@@ -215,7 +179,7 @@ describe("Digital Auditor end-to-end (Anomaly -> Case -> Action -> Verification)
       quality: "MEASURED",
     });
 
-    const anomaly = await runBatterySetpointTracking(tenant.id, site.id, battery.id);
+    const anomaly = await runModule(batterySetpointTrackingModule, tenant.id, site.id, battery);
     expect(anomaly).toBeNull();
   });
 
@@ -249,7 +213,7 @@ describe("Digital Auditor end-to-end (Anomaly -> Case -> Action -> Verification)
       quality: "MEASURED",
     });
 
-    const anomaly = await runBatterySetpointTracking(tenant.id, site.id, battery.id);
+    const anomaly = await runModule(batterySetpointTrackingModule, tenant.id, site.id, battery);
     expect(anomaly).not.toBeNull();
     expect(anomaly!.caseId).toBeNull();
 
@@ -291,7 +255,7 @@ describe("Digital Auditor end-to-end (Anomaly -> Case -> Action -> Verification)
       value: 0,
       quality: "MEASURED",
     });
-    const anomaly = await runBatterySetpointTracking(tenant.id, site.id, battery.id);
+    const anomaly = await runModule(batterySetpointTrackingModule, tenant.id, site.id, battery);
     const kase = await caseBuilder.buildFromAnomalies(tenant.id, site.id, [anomaly!]);
 
     const action = await manualOps.recordAction(
@@ -330,7 +294,7 @@ describe("Digital Auditor end-to-end (Anomaly -> Case -> Action -> Verification)
       value: 5.0,
       quality: "MEASURED",
     });
-    const stillFiring = await runBatterySetpointTracking(tenant.id, site.id, battery.id);
+    const stillFiring = await runModule(batterySetpointTrackingModule, tenant.id, site.id, battery);
     expect(stillFiring).toBeNull();
 
     const verification = await manualOps.verifyAction(
@@ -374,7 +338,7 @@ describe("Digital Auditor end-to-end (Anomaly -> Case -> Action -> Verification)
       quality: "MEASURED",
     });
 
-    const anomaly = await runPvSetpointVsActual(tenant.id, site.id, inverter.id);
+    const anomaly = await runModule(pvSetpointVsActualModule, tenant.id, site.id, inverter);
     expect(anomaly).not.toBeNull();
     expect(anomaly!.ruleKey).toBe("PV_SETPOINT_VS_ACTUAL_V1");
 

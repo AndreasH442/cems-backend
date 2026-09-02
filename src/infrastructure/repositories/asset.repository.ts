@@ -79,6 +79,17 @@ export class AssetRepository {
     return rows.map(toDomain);
   }
 
+  /** All assets of a tenant matching one asset_type, across every site — used by the Auditor rule registry (application/auditor/rule-registry.ts) to auto-discover which assets a rule applies to. */
+  async findByTenantAndType(tenantId: TenantId, assetType: AssetType): Promise<Asset[]> {
+    const rows = await this.db
+      .selectFrom("assets")
+      .selectAll()
+      .where("tenant_id", "=", tenantId)
+      .where("asset_type", "=", assetType)
+      .execute();
+    return rows.map(toDomain);
+  }
+
   async findByParent(tenantId: TenantId, parentAssetId: AssetId): Promise<Asset[]> {
     const rows = await this.db
       .selectFrom("assets")

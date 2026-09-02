@@ -25,12 +25,11 @@
     "live:setup-customer": "tsx scripts/live-setup-customer.ts",
     "live:pull": "tsx scripts/live-pull.ts",
     "live:pull-day": "tsx scripts/live-pull-day.ts",
-    "live:run-auditor": "tsx scripts/live-run-auditor.ts",
     "live:schedule": "tsx scripts/live-schedule.ts",
     "weather:pull": "tsx scripts/weather-pull.ts",
     "weather:pull-archive": "tsx scripts/weather-pull-archive.ts",
     "curtailment:run": "tsx scripts/curtailment-run.ts",
-    "grid-compliance:run": "tsx scripts/grid-compliance-run.ts"
+    "auditor:run": "tsx scripts/auditor-run.ts"
   },
   "dependencies": {
     "kysely": "^0.29.5",
